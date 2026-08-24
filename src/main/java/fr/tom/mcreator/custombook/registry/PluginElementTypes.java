@@ -1,0 +1,18 @@
+package fr.tom.mcreator.custombook.registry;
+
+import fr.tom.mcreator.custombook.element.types.CustomBook;
+import fr.tom.mcreator.custombook.ui.modgui.CustomBookGUI;
+import net.mcreator.element.ModElementType;
+import net.mcreator.element.ModElementTypeLoader;
+import net.mcreator.generator.GeneratorFlavor;
+
+public final class PluginElementTypes {
+    public static ModElementType<?> CUSTOMBOOK;
+
+    private PluginElementTypes() {
+    }
+
+    public static void load() {
+        CUSTOMBOOK = ModElementTypeLoader.register((ModElementType)new ModElementType("custombook", "custombook", (Character)null, CustomBookGUI::new, CustomBook.class)).coveredOn(GeneratorFlavor.baseLanguage((GeneratorFlavor.BaseLanguage)GeneratorFlavor.BaseLanguage.JAVA));
+    }
+}

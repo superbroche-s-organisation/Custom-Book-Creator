@@ -1,0 +1,30 @@
+templates:
+  - template: custombook/item.java.ftl
+    name: "@SRCROOT/@BASEPACKAGEPATH/item/@NAMEItem.java"
+  - template: custombook/client_events.java.ftl
+    name: "@SRCROOT/@BASEPACKAGEPATH/client/@NAMEBookClientEvents.java"
+  - template: custombook/starting_book_events.java.ftl
+    name: "@SRCROOT/@BASEPACKAGEPATH/event/@NAMEStartingBookEvents.java"
+    condition: startingBook
+  - template: custombook/screen.java.ftl
+    name: "@SRCROOT/@BASEPACKAGEPATH/client/gui/@NAMEBookScreen.java"
+  - template: custombook/item_model.json.ftl
+    writer: json
+    condition: hasNormalModel()
+    name: "@MODASSETSROOT/models/item/@registryname.json"
+  - template: custombook/item_model_custom_json.json.ftl
+    writer: json
+    condition: hasCustomJSONModel()
+    name: "@MODASSETSROOT/models/item/@registryname.json"
+  - template: custombook/item_model_custom_obj.json.ftl
+    writer: json
+    condition: hasCustomOBJModel()
+    name: "@MODASSETSROOT/models/item/@registryname.json"
+
+tags:
+  - tag: ITEMS:minecraft:piglin_loved
+    condition: isPiglinCurrency
+
+localizationkeys:
+  - key: item.@modid.@registryname
+    mapto: name

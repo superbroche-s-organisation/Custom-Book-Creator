@@ -1,0 +1,8 @@
+base_templates:
+  # GeckoLib Reborn 7.3.8 references this resource unconditionally in
+  # neoforge.mods.toml. Keeping the standard template path lets MCreator use
+  # Nerdy's Player Animator's higher-priority template when that plugin is
+  # installed, and the core empty template otherwise.
+  - template: modbase/mixin.json.ftl
+    writer: json
+    name: "@RESROOT/@modid.mixins.json"
