@@ -56,7 +56,7 @@ try {
 
     $distDir = Join-Path $projectRoot "dist"
     New-Item -ItemType Directory -Path $distDir -Force | Out-Null
-    $pluginZip = Join-Path $distDir "CustomBookCreator-MCreator2026.2-v1.0.0.zip"
+    $pluginZip = Join-Path $distDir "CustomBookCreator-MCreator2026.2-v1.0.1.zip"
     if (Test-Path -LiteralPath $pluginZip) {
         Remove-Item -LiteralPath $pluginZip -Force
     }

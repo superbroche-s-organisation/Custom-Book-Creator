@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
 
 import org.joml.Matrix3x2fStack;
 
-import net.minecraft.Util;
+import net.minecraft.util.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.input.MouseButtonEvent;

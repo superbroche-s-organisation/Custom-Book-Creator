@@ -1,4 +1,4 @@
-# Custom Book Creator 1.0.0
+# Custom Book Creator 1.0.1
 
 Source code for **Custom Book Creator**, built for **MCreator 2026.2**.
 

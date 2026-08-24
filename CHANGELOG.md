@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1
+
+- Fixed generated book screens failing to compile with MCreator 2026.2 and NeoForge 26.1.2.
+- Updated the Minecraft `Util` import used by the NeoForge 26.1.2 screen template.
+- Preserved the NeoForge 1.21.1 import so both supported generators use their correct version-specific API.
+- Added a regression test covering external-link generation for both NeoForge versions.
+
 ## 1.0.0
 
 - First stable release.
