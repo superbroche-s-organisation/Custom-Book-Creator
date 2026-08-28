@@ -30,6 +30,7 @@ public class ${name}BookScreen extends Screen {
     private static final int DESIGN_W = CONTENT_W + PAD * 2;
     private static final int DESIGN_H = PAGE_H + PAD * 2;
     private static final int DEFAULT_SIZE = 12;
+    private static final boolean HIDE_NEXT_ARROW_AT_CATEGORY_END = ${data.hideNextArrowAtCategoryEnd?c};
     private static final Pattern TAG_PATTERN = Pattern.compile("\\[(/?)(b|i|u|s|obf|size|color|url|page)(?:=([^\\]]+))?\\]", Pattern.CASE_INSENSITIVE);
 
     private static final Category[] CATEGORIES = new Category[] {
@@ -432,6 +433,9 @@ public class ${name}BookScreen extends Screen {
 
     private boolean canAdvance(int delta) {
         if (CATEGORIES.length == 0) return false;
+        if (delta > 0 && HIDE_NEXT_ARROW_AT_CATEGORY_END
+                && categoryIndex >= 0 && categoryIndex < CATEGORIES.length
+                && pageIndex >= CATEGORIES[categoryIndex].pages.length - 1) return false;
         int c = categoryIndex;
         int p = pageIndex + delta;
         if (delta > 0) {
@@ -675,7 +679,7 @@ public class ${name}BookScreen extends Screen {
     }
 
     private void advancePage(int delta) {
-        if (CATEGORIES.length == 0) return;
+        if (!canAdvance(delta)) return;
         int c = categoryIndex;
         int p = pageIndex + delta;
         if (delta > 0) {

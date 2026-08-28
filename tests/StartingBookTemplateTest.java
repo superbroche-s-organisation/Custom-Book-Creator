@@ -35,6 +35,15 @@ public final class StartingBookTemplateTest {
             require(generated.contains("guide_mod:received_starting_book_guide_book"), generator + ": wrong persistence tag");
             require(generated.contains("PlayerLoggedInEvent"), generator + ": missing login handler");
             require(generated.contains("PlayerEvent.Clone"), generator + ": missing clone handler");
+            require(generated.contains("instanceof ServerPlayer player"), generator + ": starting book grant must be server-side only");
+            require(generated.indexOf("new ItemStack") < generated.indexOf("persistentData.putBoolean"),
+                    generator + ": received marker must be stored only after the book is created");
+            if ("neoforge-26.1.2".equals(generator)) {
+                require(generated.contains("getBooleanOr(RECEIVED_TAG, false)"), generator + ": wrong 26.1 NBT getter");
+                require(!generated.contains("getBoolean(RECEIVED_TAG)"), generator + ": legacy NBT getter must not be generated");
+            } else {
+                require(generated.contains("getBoolean(RECEIVED_TAG)"), generator + ": wrong 1.21.1 NBT getter");
+            }
             require(!generated.contains("${"), generator + ": unresolved FreeMarker expression");
 
             System.out.println("STARTING_BOOK_TEMPLATE_OK " + generator);

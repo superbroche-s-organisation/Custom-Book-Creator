@@ -1,4 +1,4 @@
-# Custom Book Creator 1.0.1
+# Custom Book Creator 1.1
 
 Source code for **Custom Book Creator**, built for **MCreator 2026.2**.
 
@@ -26,6 +26,15 @@ English is the source language. The plugin includes every locale available in MC
 ## Starting books
 
 Each custom book can optionally be granted once to every player on their first world join. A persistent per-player marker prevents the book from being granted again after death or reconnection.
+
+Version 1.1 makes the grant server-only, uses the correct persistent-data API for each supported NeoForge version, and records the marker only after the book has been handed to the player.
+
+## Book organization and navigation
+
+- Drag categories to reorder them.
+- Drag pages to reorder them or move them to another category.
+- Page and category identifiers stay stable, so existing internal page buttons continue to target the same page after a move.
+- Enable **Stop on the last page of each category** in Properties to hide and disable the right arrow on a category's final page. Leave it disabled to continue directly to the next category.
 
 ## Compatibility fixes
 

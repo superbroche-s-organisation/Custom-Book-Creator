@@ -7,7 +7,7 @@
   ],
   "info": {
     "name": "Custom Book Creator",
-    "version": "1.0.1",
+    "version": "1.1",
     "description": "Create advanced visual books for MCreator 2026.2 with rich text, media, buttons, page-specific navigation, starting books, native item properties, and localization support for every MCreator language.",
     "author": "Tom"
   }

@@ -42,6 +42,7 @@ IItemWithTexture {
     public boolean isPiglinCurrency = false;
     public boolean destroyAnyBlock = false;
     public boolean startingBook = false;
+    public boolean hideNextArrowAtCategoryEnd = false;
     public int renderType = 0;
     public String customModelName = "Normal";
     @TextureReference(value=TextureType.ITEM)

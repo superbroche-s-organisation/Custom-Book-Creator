@@ -3,7 +3,7 @@ package ${package}.event;
 import ${package}.init.${JavaModName}Items;
 
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -18,17 +18,19 @@ public final class ${name}StartingBookEvents {
 
     @SubscribeEvent
     public static void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
-        Player player = event.getEntity();
+        if (!(event.getEntity() instanceof ServerPlayer player)) {
+            return;
+        }
         CompoundTag persistentData = player.getPersistentData();
         if (persistentData.getBoolean(RECEIVED_TAG)) {
             return;
         }
 
-        persistentData.putBoolean(RECEIVED_TAG, true);
         ItemStack book = new ItemStack(${JavaModName}Items.${data.getModElement().getRegistryNameUpper()}.get());
         if (!player.getInventory().add(book)) {
             player.drop(book, false);
         }
+        persistentData.putBoolean(RECEIVED_TAG, true);
     }
 
     @SubscribeEvent

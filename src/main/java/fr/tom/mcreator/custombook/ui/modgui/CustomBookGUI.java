@@ -24,6 +24,9 @@ import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.Shape;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.Transferable;
+import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.event.ActionListener;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
@@ -59,6 +62,7 @@ import javax.swing.JCheckBox;
 import javax.swing.JColorChooser;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
+import javax.swing.DropMode;
 import javax.swing.JEditorPane;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
@@ -74,6 +78,7 @@ import javax.swing.JTree;
 import javax.swing.ListCellRenderer;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
+import javax.swing.TransferHandler;
 import javax.swing.border.EmptyBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
@@ -119,6 +124,7 @@ extends ModElementGUI<CustomBook> {
     private final JCheckBox piglinCurrency = new JCheckBox(CustomBookGUI.tr("option.enable"));
     private final JCheckBox destroyAnyBlock = new JCheckBox(CustomBookGUI.tr("option.enable"));
     private final JCheckBox startingBook = new JCheckBox(CustomBookGUI.tr("option.first_spawn_only"));
+    private final JCheckBox hideNextArrowAtCategoryEnd = new JCheckBox(CustomBookGUI.tr("option.stop_at_category_end"));
     private final JCheckBox glow = new JCheckBox(CustomBookGUI.tr("option.enable"));
     private TabListField creativeTabsField;
     private TypedTextureSelectorDialog textureSelectorDialog;
@@ -349,6 +355,7 @@ extends ModElementGUI<CustomBook> {
         CustomBookGUI.setCompactWidth(this.stackSize, 120);
         CustomBookGUI.setCompactWidth(this.enchantability, 120);
         CustomBookGUI.setCompactWidth(this.generation, 120);
+        CustomBookGUI.setCompactWidth(this.hideNextArrowAtCategoryEnd, 390);
         this.creativeTabsField.setPreferredSize(new Dimension(430, 44));
         this.creativeTabsField.setMinimumSize(new Dimension(330, 44));
         this.creativeTabsField.setMaximumSize(new Dimension(430, 44));
@@ -400,6 +407,7 @@ extends ModElementGUI<CustomBook> {
         this.addRow(jPanel3, gridBagConstraints2, n2++, CustomBookGUI.tr("field.author"), this.author, null);
         this.addRow(jPanel3, gridBagConstraints2, n2++, CustomBookGUI.tr("field.book_generation"), this.generation, "custombook/properties/book_generation");
         this.addRow(jPanel3, gridBagConstraints2, n2++, CustomBookGUI.tr("field.starting_book"), this.startingBook, "custombook/properties/starting_book");
+        this.addRow(jPanel3, gridBagConstraints2, n2++, CustomBookGUI.tr("field.category_navigation"), this.hideNextArrowAtCategoryEnd, null);
         JPanel jPanel4 = new JPanel();
         jPanel4.setLayout(new BoxLayout(jPanel4, 1));
         jPanel2.setAlignmentX(0.0f);
@@ -464,7 +472,14 @@ extends ModElementGUI<CustomBook> {
         this.bookTree.setRootVisible(false);
         this.bookTree.setShowsRootHandles(true);
         this.bookTree.setRowHeight(24);
+        this.bookTree.setDragEnabled(true);
+        this.bookTree.setDropMode(DropMode.ON_OR_INSERT);
+        this.bookTree.setTransferHandler(new BookTreeTransferHandler());
+        this.bookTree.setToolTipText(CustomBookGUI.tr("tooltip.drag_reorder"));
         this.bookTree.addTreeSelectionListener(treeSelectionEvent -> this.onTreeSelectionChanged());
+        JLabel dragHint = new JLabel("<html><small>" + CustomBookGUI.tr("tooltip.drag_reorder") + "</small></html>");
+        dragHint.setBorder(new EmptyBorder(0, 3, 2, 3));
+        jPanel.add((Component)dragHint, "North");
         jPanel.add((Component)new JScrollPane(this.bookTree), "Center");
         JPanel jPanel2 = new JPanel(new GridLayout(0, 1, 4, 4));
         JButton jButton = new JButton(CustomBookGUI.tr("action.add_category"));
@@ -1052,6 +1067,7 @@ extends ModElementGUI<CustomBook> {
         defaultMutableTreeNode.add(new DefaultMutableTreeNode(bookPage));
         this.rootNode.add(defaultMutableTreeNode);
         this.treeModel.reload();
+        this.syncCategoryPageListsFromTree();
         this.refreshCategoryTargets();
     }
 
@@ -1744,6 +1760,7 @@ extends ModElementGUI<CustomBook> {
         defaultMutableTreeNode.add(defaultMutableTreeNode2);
         this.rootNode.add(defaultMutableTreeNode);
         this.treeModel.reload(this.rootNode);
+        this.syncCategoryPageListsFromTree();
         this.refreshCategoryTargets();
         this.bookTree.expandPath(new TreePath(defaultMutableTreeNode.getPath()));
         this.bookTree.setSelectionPath(new TreePath(defaultMutableTreeNode2.getPath()));
@@ -1767,6 +1784,7 @@ extends ModElementGUI<CustomBook> {
         DefaultMutableTreeNode defaultMutableTreeNode2 = new DefaultMutableTreeNode(bookPage);
         defaultMutableTreeNode.add(defaultMutableTreeNode2);
         this.treeModel.reload(defaultMutableTreeNode);
+        this.syncCategoryPageListsFromTree();
         this.bookTree.expandPath(new TreePath(defaultMutableTreeNode.getPath()));
         this.bookTree.setSelectionPath(new TreePath(defaultMutableTreeNode2.getPath()));
     }
@@ -1831,6 +1849,7 @@ extends ModElementGUI<CustomBook> {
             defaultMutableTreeNode2.remove(defaultMutableTreeNode);
             this.treeModel.reload(defaultMutableTreeNode2);
         }
+        this.syncCategoryPageListsFromTree();
         this.refreshCategoryTargets();
         this.activePage = null;
         this.selectFirstPage();
@@ -1845,6 +1864,45 @@ extends ModElementGUI<CustomBook> {
         DefaultMutableTreeNode defaultMutableTreeNode2 = (DefaultMutableTreeNode)defaultMutableTreeNode.getChildAt(0);
         this.bookTree.expandPath(new TreePath(defaultMutableTreeNode.getPath()));
         this.bookTree.setSelectionPath(new TreePath(defaultMutableTreeNode2.getPath()));
+    }
+
+    private void syncCategoryPageListsFromTree() {
+        for (int i = 0; i < this.rootNode.getChildCount(); ++i) {
+            if (!(this.rootNode.getChildAt(i) instanceof DefaultMutableTreeNode categoryNode)
+                    || !(categoryNode.getUserObject() instanceof CustomBook.BookCategory category)) {
+                continue;
+            }
+            category.pages.clear();
+            for (int j = 0; j < categoryNode.getChildCount(); ++j) {
+                if (categoryNode.getChildAt(j) instanceof DefaultMutableTreeNode pageNode
+                        && pageNode.getUserObject() instanceof CustomBook.BookPage page) {
+                    category.pages.add(page);
+                }
+            }
+        }
+    }
+
+    private void updateMovedPageButtonTargets(String pageId, String categoryId) {
+        if (pageId == null || pageId.isBlank() || categoryId == null || categoryId.isBlank()) {
+            return;
+        }
+        for (int i = 0; i < this.rootNode.getChildCount(); ++i) {
+            if (!(this.rootNode.getChildAt(i) instanceof DefaultMutableTreeNode categoryNode)) {
+                continue;
+            }
+            for (int j = 0; j < categoryNode.getChildCount(); ++j) {
+                if (!(categoryNode.getChildAt(j) instanceof DefaultMutableTreeNode pageNode)
+                        || !(pageNode.getUserObject() instanceof CustomBook.BookPage page)
+                        || page.elements == null) {
+                    continue;
+                }
+                for (CustomBook.BookElement element : page.elements) {
+                    if (element != null && "BUTTON".equals(element.type) && pageId.equals(element.targetPageId)) {
+                        element.targetCategoryId = categoryId;
+                    }
+                }
+            }
+        }
     }
 
     private List<PageRef> collectPageRefs() {
@@ -2142,6 +2200,7 @@ extends ModElementGUI<CustomBook> {
         this.piglinCurrency.setSelected(customBook.isPiglinCurrency);
         this.destroyAnyBlock.setSelected(customBook.destroyAnyBlock);
         this.startingBook.setSelected(customBook.startingBook);
+        this.hideNextArrowAtCategoryEnd.setSelected(customBook.hideNextArrowAtCategoryEnd);
         this.glow.setSelected(customBook.glow);
         ArrayList<TabEntry> arrayList2 = arrayList = customBook.creativeTabs == null ? new ArrayList<TabEntry>() : new ArrayList<TabEntry>(customBook.creativeTabs);
         if (arrayList.isEmpty()) {
@@ -2251,6 +2310,7 @@ extends ModElementGUI<CustomBook> {
         customBook.isPiglinCurrency = this.piglinCurrency.isSelected();
         customBook.destroyAnyBlock = this.destroyAnyBlock.isSelected();
         customBook.startingBook = this.startingBook.isSelected();
+        customBook.hideNextArrowAtCategoryEnd = this.hideNextArrowAtCategoryEnd.isSelected();
         customBook.glow = this.glow.isSelected();
         customBook.itemTexture = "";
         try {
@@ -3067,6 +3127,161 @@ extends ModElementGUI<CustomBook> {
             W;
 
         }
+    }
+
+    private final class BookTreeTransferHandler extends TransferHandler {
+        private final DataFlavor nodeFlavor = new DataFlavor(DefaultMutableTreeNode.class, "Custom Book tree node");
+
+        @Override
+        protected Transferable createTransferable(JComponent component) {
+            if (component != CustomBookGUI.this.bookTree) {
+                return null;
+            }
+            DefaultMutableTreeNode node = CustomBookGUI.this.selectedNode();
+            if (node == null || node == CustomBookGUI.this.rootNode || node.getParent() == null) {
+                return null;
+            }
+            return new TreeNodeTransferable(node, this.nodeFlavor);
+        }
+
+        @Override
+        public int getSourceActions(JComponent component) {
+            return MOVE;
+        }
+
+        @Override
+        public boolean canImport(TransferSupport support) {
+            if (!support.isDrop() || !support.isDataFlavorSupported(this.nodeFlavor)) {
+                return false;
+            }
+            support.setShowDropLocation(true);
+            try {
+                DefaultMutableTreeNode source = (DefaultMutableTreeNode)support.getTransferable().getTransferData(this.nodeFlavor);
+                TreeDropDestination destination = this.destinationFor(support, source);
+                if (destination == null || destination.parent == null || source == destination.parent) {
+                    return false;
+                }
+                return true;
+            }
+            catch (UnsupportedFlavorException | IOException | RuntimeException exception) {
+                return false;
+            }
+        }
+
+        @Override
+        public boolean importData(TransferSupport support) {
+            if (!this.canImport(support)) {
+                return false;
+            }
+            try {
+                DefaultMutableTreeNode source = (DefaultMutableTreeNode)support.getTransferable().getTransferData(this.nodeFlavor);
+                TreeDropDestination destination = this.destinationFor(support, source);
+                if (destination == null) {
+                    return false;
+                }
+                DefaultMutableTreeNode oldParent = (DefaultMutableTreeNode)source.getParent();
+                int oldIndex = oldParent.getIndex(source);
+                int insertionIndex = destination.index;
+                if (oldParent == destination.parent && oldIndex < insertionIndex) {
+                    insertionIndex--;
+                }
+                insertionIndex = Math.max(0, Math.min(insertionIndex, destination.parent.getChildCount()));
+
+                CustomBookGUI.this.treeModel.removeNodeFromParent(source);
+                if (oldParent != destination.parent && oldParent.getChildCount() == 0
+                        && source.getUserObject() instanceof CustomBook.BookPage) {
+                    CustomBook.BookPage replacementPage = new CustomBook.BookPage(CustomBookGUI.tr("default.page", 1), "");
+                    CustomBookGUI.this.ensureNavigationElements(replacementPage);
+                    CustomBookGUI.this.treeModel.insertNodeInto(new DefaultMutableTreeNode(replacementPage), oldParent, 0);
+                }
+                CustomBookGUI.this.treeModel.insertNodeInto(source, destination.parent, insertionIndex);
+                if (oldParent != destination.parent
+                        && source.getUserObject() instanceof CustomBook.BookPage movedPage
+                        && destination.parent.getUserObject() instanceof CustomBook.BookCategory destinationCategory) {
+                    CustomBookGUI.this.updateMovedPageButtonTargets(movedPage.id, destinationCategory.id);
+                }
+                CustomBookGUI.this.syncCategoryPageListsFromTree();
+                CustomBookGUI.this.refreshCategoryTargets();
+
+                TreePath parentPath = new TreePath(destination.parent.getPath());
+                CustomBookGUI.this.bookTree.expandPath(parentPath);
+                CustomBookGUI.this.bookTree.setSelectionPath(new TreePath(source.getPath()));
+                CustomBookGUI.this.bookTree.scrollPathToVisible(new TreePath(source.getPath()));
+                return true;
+            }
+            catch (UnsupportedFlavorException | IOException | RuntimeException exception) {
+                return false;
+            }
+        }
+
+        private TreeDropDestination destinationFor(TransferSupport support, DefaultMutableTreeNode source) {
+            if (!(support.getDropLocation() instanceof JTree.DropLocation location)) {
+                return null;
+            }
+            TreePath path = location.getPath();
+            if (path == null || !(path.getLastPathComponent() instanceof DefaultMutableTreeNode target)) {
+                return null;
+            }
+            int childIndex = location.getChildIndex();
+
+            if (source.getUserObject() instanceof CustomBook.BookCategory) {
+                if (target == CustomBookGUI.this.rootNode) {
+                    return new TreeDropDestination(target, normalizedIndex(childIndex, target.getChildCount()));
+                }
+                if (target.getUserObject() instanceof CustomBook.BookCategory) {
+                    return new TreeDropDestination(CustomBookGUI.this.rootNode,
+                            CustomBookGUI.this.rootNode.getIndex(target));
+                }
+                return null;
+            }
+
+            if (!(source.getUserObject() instanceof CustomBook.BookPage)) {
+                return null;
+            }
+            if (target.getUserObject() instanceof CustomBook.BookCategory) {
+                return new TreeDropDestination(target, normalizedIndex(childIndex, target.getChildCount()));
+            }
+            if (target.getUserObject() instanceof CustomBook.BookPage
+                    && target.getParent() instanceof DefaultMutableTreeNode targetCategory) {
+                return new TreeDropDestination(targetCategory, targetCategory.getIndex(target));
+            }
+            return null;
+        }
+
+        private int normalizedIndex(int requestedIndex, int childCount) {
+            return requestedIndex < 0 ? childCount : Math.max(0, Math.min(requestedIndex, childCount));
+        }
+    }
+
+    private static final class TreeNodeTransferable implements Transferable {
+        private final DefaultMutableTreeNode node;
+        private final DataFlavor flavor;
+
+        private TreeNodeTransferable(DefaultMutableTreeNode node, DataFlavor flavor) {
+            this.node = node;
+            this.flavor = flavor;
+        }
+
+        @Override
+        public DataFlavor[] getTransferDataFlavors() {
+            return new DataFlavor[]{this.flavor};
+        }
+
+        @Override
+        public boolean isDataFlavorSupported(DataFlavor candidate) {
+            return this.flavor.equals(candidate);
+        }
+
+        @Override
+        public Object getTransferData(DataFlavor candidate) throws UnsupportedFlavorException {
+            if (!this.isDataFlavorSupported(candidate)) {
+                throw new UnsupportedFlavorException(candidate);
+            }
+            return this.node;
+        }
+    }
+
+    private record TreeDropDestination(DefaultMutableTreeNode parent, int index) {
     }
 
     private record GifData(List<BufferedImage> frames, List<Integer> delays, int width, int height) {

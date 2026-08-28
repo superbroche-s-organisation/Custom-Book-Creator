@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1
+
+- Added drag-and-drop reordering for categories and pages in the book tree.
+- Added drag-and-drop page moves between categories while preserving page identifiers, content, and internal button targets.
+- Added **Stop on the last page of each category** to Properties. When enabled, the right navigation arrow is hidden and cannot advance beyond the current category; when disabled, navigation continues to the next category as before.
+- Fixed starting books for MCreator 2026.2 and NeoForge 26.1.2 by using the current persistent-data boolean API.
+- Made starting-book grants server-only and store the once-per-player marker only after the book is handed to the player.
+- Added the new editor labels and drag-and-drop guidance to every locale supported by MCreator 2026.2.
+- Added regression coverage for starting-book generation, category-boundary navigation, drag-and-drop wiring, and localization.
+
 ## 1.0.1
 
 - Fixed generated book screens failing to compile with MCreator 2026.2 and NeoForge 26.1.2.
