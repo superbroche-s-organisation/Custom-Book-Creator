@@ -34,11 +34,22 @@ public final class V11FeaturesTest {
         require(gui.contains("bookTree.setDragEnabled(true)"), "book tree drag support is disabled");
         require(gui.contains("setDropMode(DropMode.ON_OR_INSERT)"), "book tree drop mode is missing");
         require(gui.contains("setTransferHandler(new BookTreeTransferHandler())"), "book tree transfer handler is missing");
+        require(gui.contains("this.draggedNode = node"),
+                "the dragged node is not retained while Swing evaluates possible drop locations");
+        require(gui.contains("DataFlavor.javaJVMLocalObjectMimeType"),
+                "tree nodes must use an in-process data flavor for reliable Windows drag-and-drop");
+        require(gui.contains("support.setDropAction(MOVE)"), "drop action is not explicitly accepted as a move");
+        require(!gui.contains("support.getTransferable().getTransferData(this.nodeFlavor)"),
+                "drop validation must not request transferable data while Windows is still negotiating the drag");
         require(gui.contains("treeModel.removeNodeFromParent(source)"), "drag-and-drop does not remove the original node");
         require(gui.contains("treeModel.insertNodeInto(source, destination.parent, insertionIndex)"),
                 "drag-and-drop must reinsert the same node so its identifier and content stay intact");
         require(gui.contains("updateMovedPageButtonTargets(movedPage.id, destinationCategory.id)"),
                 "internal page-button targets are not updated after cross-category moves");
+        require(gui.contains("target == CustomBookGUI.this.rootNode"),
+                "page drops between categories are not handled");
+        require(gui.contains("this.isLowerHalf(location, target) ? 1 : 0"),
+                "drop placement does not distinguish before and after a visible row");
     }
 
     private static void verifyGeneratedNavigation() throws Exception {

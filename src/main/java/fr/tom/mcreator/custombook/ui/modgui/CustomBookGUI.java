@@ -3130,7 +3130,10 @@ extends ModElementGUI<CustomBook> {
     }
 
     private final class BookTreeTransferHandler extends TransferHandler {
-        private final DataFlavor nodeFlavor = new DataFlavor(DefaultMutableTreeNode.class, "Custom Book tree node");
+        private final DataFlavor nodeFlavor = new DataFlavor(
+                DataFlavor.javaJVMLocalObjectMimeType + ";class=" + DefaultMutableTreeNode.class.getName(),
+                "Custom Book tree node");
+        private DefaultMutableTreeNode draggedNode;
 
         @Override
         protected Transferable createTransferable(JComponent component) {
@@ -3141,6 +3144,7 @@ extends ModElementGUI<CustomBook> {
             if (node == null || node == CustomBookGUI.this.rootNode || node.getParent() == null) {
                 return null;
             }
+            this.draggedNode = node;
             return new TreeNodeTransferable(node, this.nodeFlavor);
         }
 
@@ -3151,19 +3155,19 @@ extends ModElementGUI<CustomBook> {
 
         @Override
         public boolean canImport(TransferSupport support) {
-            if (!support.isDrop() || !support.isDataFlavorSupported(this.nodeFlavor)) {
+            if (!support.isDrop() || !support.isDataFlavorSupported(this.nodeFlavor) || this.draggedNode == null) {
                 return false;
             }
+            support.setDropAction(MOVE);
             support.setShowDropLocation(true);
             try {
-                DefaultMutableTreeNode source = (DefaultMutableTreeNode)support.getTransferable().getTransferData(this.nodeFlavor);
-                TreeDropDestination destination = this.destinationFor(support, source);
-                if (destination == null || destination.parent == null || source == destination.parent) {
+                TreeDropDestination destination = this.destinationFor(support, this.draggedNode);
+                if (destination == null || destination.parent == null || this.draggedNode == destination.parent) {
                     return false;
                 }
                 return true;
             }
-            catch (UnsupportedFlavorException | IOException | RuntimeException exception) {
+            catch (RuntimeException exception) {
                 return false;
             }
         }
@@ -3174,7 +3178,7 @@ extends ModElementGUI<CustomBook> {
                 return false;
             }
             try {
-                DefaultMutableTreeNode source = (DefaultMutableTreeNode)support.getTransferable().getTransferData(this.nodeFlavor);
+                DefaultMutableTreeNode source = this.draggedNode;
                 TreeDropDestination destination = this.destinationFor(support, source);
                 if (destination == null) {
                     return false;
@@ -3209,9 +3213,14 @@ extends ModElementGUI<CustomBook> {
                 CustomBookGUI.this.bookTree.scrollPathToVisible(new TreePath(source.getPath()));
                 return true;
             }
-            catch (UnsupportedFlavorException | IOException | RuntimeException exception) {
+            catch (RuntimeException exception) {
                 return false;
             }
+        }
+
+        @Override
+        protected void exportDone(JComponent source, Transferable data, int action) {
+            this.draggedNode = null;
         }
 
         private TreeDropDestination destinationFor(TransferSupport support, DefaultMutableTreeNode source) {
@@ -3230,7 +3239,12 @@ extends ModElementGUI<CustomBook> {
                 }
                 if (target.getUserObject() instanceof CustomBook.BookCategory) {
                     return new TreeDropDestination(CustomBookGUI.this.rootNode,
-                            CustomBookGUI.this.rootNode.getIndex(target));
+                            CustomBookGUI.this.rootNode.getIndex(target) + (this.isLowerHalf(location, target) ? 1 : 0));
+                }
+                if (target.getUserObject() instanceof CustomBook.BookPage
+                        && target.getParent() instanceof DefaultMutableTreeNode targetCategory) {
+                    return new TreeDropDestination(CustomBookGUI.this.rootNode,
+                            CustomBookGUI.this.rootNode.getIndex(targetCategory) + (this.isLowerHalf(location, target) ? 1 : 0));
                 }
                 return null;
             }
@@ -3238,14 +3252,37 @@ extends ModElementGUI<CustomBook> {
             if (!(source.getUserObject() instanceof CustomBook.BookPage)) {
                 return null;
             }
+            if (target == CustomBookGUI.this.rootNode) {
+                int categoryCount = target.getChildCount();
+                if (categoryCount == 0) {
+                    return null;
+                }
+                int categoryIndex = normalizedIndex(childIndex, categoryCount);
+                if (categoryIndex <= 0) {
+                    DefaultMutableTreeNode firstCategory = (DefaultMutableTreeNode)target.getChildAt(0);
+                    return new TreeDropDestination(firstCategory, 0);
+                }
+                if (categoryIndex >= categoryCount) {
+                    DefaultMutableTreeNode lastCategory = (DefaultMutableTreeNode)target.getChildAt(categoryCount - 1);
+                    return new TreeDropDestination(lastCategory, lastCategory.getChildCount());
+                }
+                DefaultMutableTreeNode nextCategory = (DefaultMutableTreeNode)target.getChildAt(categoryIndex);
+                return new TreeDropDestination(nextCategory, 0);
+            }
             if (target.getUserObject() instanceof CustomBook.BookCategory) {
                 return new TreeDropDestination(target, normalizedIndex(childIndex, target.getChildCount()));
             }
             if (target.getUserObject() instanceof CustomBook.BookPage
                     && target.getParent() instanceof DefaultMutableTreeNode targetCategory) {
-                return new TreeDropDestination(targetCategory, targetCategory.getIndex(target));
+                return new TreeDropDestination(targetCategory,
+                        targetCategory.getIndex(target) + (this.isLowerHalf(location, target) ? 1 : 0));
             }
             return null;
+        }
+
+        private boolean isLowerHalf(JTree.DropLocation location, DefaultMutableTreeNode target) {
+            Rectangle bounds = CustomBookGUI.this.bookTree.getPathBounds(new TreePath(target.getPath()));
+            return bounds != null && location.getDropPoint().y >= bounds.y + bounds.height / 2;
         }
 
         private int normalizedIndex(int requestedIndex, int childCount) {
