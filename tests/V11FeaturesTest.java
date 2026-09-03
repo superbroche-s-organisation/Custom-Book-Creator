@@ -18,7 +18,8 @@ public final class V11FeaturesTest {
 
     private static void verifyVersion() throws Exception {
         String pluginJson = read(RESOURCES.resolve("plugin.json"));
-        require(pluginJson.contains("\"version\": \"1.1\""), "plugin.json does not report version 1.1");
+        require(pluginJson.contains("\"version\": \"1.1.2-hotfix\""),
+                "plugin.json does not report version 1.1.2-hotfix");
     }
 
     private static void verifyEditorModelAndDragDrop() throws Exception {

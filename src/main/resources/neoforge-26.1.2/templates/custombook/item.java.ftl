@@ -19,23 +19,23 @@ public class ${name}Item extends WrittenBookItem {
 
     public ${name}Item(Item.Properties properties) {
         super(properties
-            .stacksTo(${data.stackSize})
+            .stacksTo(${data.getSafeStackSize()})
             <#if data.immuneToFire>
             .fireResistant()
             </#if>
-            <#if data.rarity != "COMMON">
-            .rarity(Rarity.${data.rarity})
+            <#if data.getSafeRarity() != "COMMON">
+            .rarity(Rarity.${data.getSafeRarity()})
             </#if>
-            <#if data.enchantability != 0>
-            .enchantable(${data.enchantability})
+            <#if data.getSafeEnchantability() != 0>
+            .enchantable(${data.getSafeEnchantability()})
             </#if>
             .component(
                 () -> DataComponents.WRITTEN_BOOK_CONTENT,
                 new WrittenBookContent(
-                    Filterable.passThrough("${data.bookTitle?j_string}"),
-                    "${data.author?j_string}",
-                    ${data.generation},
-                    List.of(Filterable.passThrough(Component.literal("${data.bookTitle?j_string}"))),
+                    Filterable.passThrough("${data.getSafeBookTitle()?j_string}"),
+                    "${data.getSafeAuthor()?j_string}",
+                    ${data.getSafeGeneration()},
+                    List.of(Filterable.passThrough(Component.literal("${data.getSafeBookTitle()?j_string}"))),
                     true
                 )
             )

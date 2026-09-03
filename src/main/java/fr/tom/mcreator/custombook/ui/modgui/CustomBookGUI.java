@@ -27,7 +27,6 @@ import java.awt.Shape;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
-import java.awt.event.ActionListener;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.event.MouseAdapter;
@@ -42,11 +41,17 @@ import java.net.URI;
 import java.nio.file.CopyOption;
 import java.nio.file.Files;
 import java.nio.file.attribute.FileAttribute;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -112,6 +117,9 @@ public class CustomBookGUI
 extends ModElementGUI<CustomBook> {
     private static final int MAX_TITLE_LENGTH = 32;
     private static final int MAX_TEXT_LENGTH = Short.MAX_VALUE;
+    private static final int MAX_MEDIA_DIMENSION = 8192;
+    private static final int MAX_GIF_FRAMES = 500;
+    private static final long MAX_DECODED_GIF_PIXELS = 64_000_000L;
     private final MCreator app;
     private final JTextField displayName = new JTextField("Custom Book", 32);
     private final JTextField bookTitle = new JTextField("Custom Book", 32);
@@ -193,57 +201,6 @@ extends ModElementGUI<CustomBook> {
         this.app = mCreator;
         this.initGUI();
         super.finalizeGUI();
-        this.installSaveRecoveryGuard();
-    }
-
-    private void installSaveRecoveryGuard() {
-        try {
-            Field field = ModElementGUI.class.getDeclaredField("save");
-            Field field2 = ModElementGUI.class.getDeclaredField("saveOnly");
-            field.setAccessible(true);
-            field2.setAccessible(true);
-            JButton jButton = (JButton)field.get((Object)this);
-            JButton jButton2 = (JButton)field2.get((Object)this);
-            this.wrapNativeSaveButton(jButton, jButton, jButton2);
-            this.wrapNativeSaveButton(jButton2, jButton, jButton2);
-        }
-        catch (ReflectiveOperationException | RuntimeException exception) {
-            System.err.println("[CustomBookCreator] Save recovery guard could not be installed.");
-            exception.printStackTrace();
-        }
-    }
-
-    private void wrapNativeSaveButton(JButton jButton, JButton jButton2, JButton jButton3) {
-        if (jButton == null) {
-            return;
-        }
-        ActionListener[] actionListenerArray = jButton.getActionListeners();
-        if (actionListenerArray.length == 0) {
-            return;
-        }
-        for (ActionListener actionListener : actionListenerArray) {
-            jButton.removeActionListener(actionListener);
-        }
-        jButton.addActionListener(actionEvent -> {
-            try {
-                for (ActionListener actionListener : actionListenerArray) {
-                    actionListener.actionPerformed(actionEvent);
-                }
-            }
-            catch (Throwable throwable) {
-                Throwable throwable2;
-                jButton2.setEnabled(true);
-                jButton3.setEnabled(true);
-                for (throwable2 = throwable; throwable2.getCause() != null && throwable2.getCause() != throwable2; throwable2 = throwable2.getCause()) {
-                }
-                throwable2.printStackTrace();
-                String string = throwable2.getMessage();
-                if (string == null || string.isBlank()) {
-                    string = throwable2.getClass().getSimpleName();
-                }
-                JOptionPane.showMessageDialog((Component)this.app, CustomBookGUI.tr("error.save_message", string), CustomBookGUI.tr("error.save_title"), 0);
-            }
-        });
     }
 
     protected void initGUI() {
@@ -330,9 +287,15 @@ extends ModElementGUI<CustomBook> {
         Model model2 = this.itemModel.getSelectedItem();
         List<Model> object = new ArrayList<>();
         object.add(new Model.BuiltInModel("Normal"));
-        for (Model model3 : Model.getModelsWithTextureMaps((Workspace)this.app.getWorkspace())) {
-            if (model3.getType() != Model.Type.JSON && model3.getType() != Model.Type.OBJ) continue;
-            object.add(model3);
+        try {
+            for (Model model3 : Model.getModelsWithTextureMaps((Workspace)this.app.getWorkspace())) {
+                if (model3.getType() != Model.Type.JSON && model3.getType() != Model.Type.OBJ) continue;
+                object.add(model3);
+            }
+        }
+        catch (RuntimeException exception) {
+            System.err.println("[CustomBookCreator] Could not load custom item models; keeping the built-in model available.");
+            exception.printStackTrace();
         }
         this.itemModel.setItems(object);
         if (model2 != null) {
@@ -541,7 +504,7 @@ extends ModElementGUI<CustomBook> {
         });
         this.textEditor.getDocument().addDocumentListener(CustomBookGUI.simpleListener(() -> {
             if (!this.loadingElement && this.activeElement != null && "TEXT".equals(this.activeElement.type)) {
-                this.activeElement.content = CustomBookGUI.limit(this.textEditor.getText(), Short.MAX_VALUE);
+                this.activeElement.content = CustomBookGUI.limit(this.textEditor.getText(), MAX_TEXT_LENGTH);
                 this.syncLegacyPageContent();
                 this.previewCanvas.repaint();
             }
@@ -914,13 +877,17 @@ extends ModElementGUI<CustomBook> {
         if (this.activeElement == null) {
             return;
         }
-        boolean bl = this.loadingElement;
+        boolean previousLoadingState = this.loadingElement;
         this.loadingElement = true;
-        this.elementX.setValue(this.activeElement.x);
-        this.elementY.setValue(this.activeElement.y);
-        this.elementW.setValue(this.activeElement.width);
-        this.elementH.setValue(this.activeElement.height);
-        this.loadingElement = bl;
+        try {
+            this.elementX.setValue(this.activeElement.x);
+            this.elementY.setValue(this.activeElement.y);
+            this.elementW.setValue(this.activeElement.width);
+            this.elementH.setValue(this.activeElement.height);
+        }
+        finally {
+            this.loadingElement = previousLoadingState;
+        }
     }
 
     private void bindLiveSpinner(JSpinner jSpinner, final Runnable runnable) {
@@ -1076,11 +1043,16 @@ extends ModElementGUI<CustomBook> {
         DefaultMutableTreeNode defaultMutableTreeNode = this.selectedNode();
         if (defaultMutableTreeNode == null || !((object = defaultMutableTreeNode.getUserObject()) instanceof CustomBook.BookPage)) {
             this.activePage = null;
+            boolean previousLoadingState = this.loadingPage;
             this.loadingPage = true;
-            this.pageTitle.setText("");
-            this.pageTitle.setEnabled(false);
-            this.pageTitleVisible.setEnabled(false);
-            this.loadingPage = false;
+            try {
+                this.pageTitle.setText("");
+                this.pageTitle.setEnabled(false);
+                this.pageTitleVisible.setEnabled(false);
+            }
+            finally {
+                this.loadingPage = previousLoadingState;
+            }
             this.selectElement(null);
             this.previewCanvas.setPage(null);
             return;
@@ -1089,12 +1061,17 @@ extends ModElementGUI<CustomBook> {
         this.activePage = bookPage;
         this.activePage.normalizeElements();
         this.ensureNavigationElements(this.activePage);
+        boolean previousLoadingState = this.loadingPage;
         this.loadingPage = true;
-        this.pageTitle.setEnabled(true);
-        this.pageTitleVisible.setEnabled(true);
-        this.pageTitle.setText(bookPage.title == null ? CustomBookGUI.tr("default.page_plain") : bookPage.title);
-        this.pageTitleVisible.setSelected(bookPage.showTitle);
-        this.loadingPage = false;
+        try {
+            this.pageTitle.setEnabled(true);
+            this.pageTitleVisible.setEnabled(true);
+            this.pageTitle.setText(bookPage.title == null ? CustomBookGUI.tr("default.page_plain") : bookPage.title);
+            this.pageTitleVisible.setSelected(bookPage.showTitle);
+        }
+        finally {
+            this.loadingPage = previousLoadingState;
+        }
         this.previewCanvas.setPage(this.activePage);
         this.selectElement(this.activePage.elements.isEmpty() ? null : this.activePage.elements.get(0));
     }
@@ -1102,19 +1079,21 @@ extends ModElementGUI<CustomBook> {
     private void selectElement(CustomBook.BookElement bookElement) {
         this.activeElement = bookElement;
         this.previewCanvas.selected = bookElement;
+        boolean previousLoadingState = this.loadingElement;
         this.loadingElement = true;
-        if (bookElement == null) {
-            this.inspectorCardLayout.show(this.inspectorCards, "NONE");
-            this.setGeometryEnabled(false);
-            this.selectionInfo.setText(CustomBookGUI.tr("message.no_selection"));
-        } else {
-            bookElement.normalize();
-            this.setGeometryEnabled(true);
-            this.elementX.setValue(bookElement.x);
-            this.elementY.setValue(bookElement.y);
-            this.elementW.setValue(bookElement.width);
-            this.elementH.setValue(bookElement.height);
-            switch (bookElement.type) {
+        try {
+            if (bookElement == null) {
+                this.inspectorCardLayout.show(this.inspectorCards, "NONE");
+                this.setGeometryEnabled(false);
+                this.selectionInfo.setText(CustomBookGUI.tr("message.no_selection"));
+            } else {
+                bookElement.normalize();
+                this.setGeometryEnabled(true);
+                this.elementX.setValue(bookElement.x);
+                this.elementY.setValue(bookElement.y);
+                this.elementW.setValue(bookElement.width);
+                this.elementH.setValue(bookElement.height);
+                switch (bookElement.type) {
                 case "TEXT": {
                     this.inspectorCardLayout.show(this.inspectorCards, "TEXT");
                     this.textEditor.setText(bookElement.content == null ? "" : bookElement.content);
@@ -1176,10 +1155,13 @@ extends ModElementGUI<CustomBook> {
                 default: {
                     this.inspectorCardLayout.show(this.inspectorCards, "NONE");
                 }
+                }
+                this.updateSelectionInfo();
             }
-            this.updateSelectionInfo();
         }
-        this.loadingElement = false;
+        finally {
+            this.loadingElement = previousLoadingState;
+        }
         this.previewCanvas.repaint();
     }
 
@@ -1220,7 +1202,12 @@ extends ModElementGUI<CustomBook> {
         TextureSelectionButton textureSelectionButton2 = textureSelectionButton;
         this.clearTextureSelection(textureSelectionButton2);
         if (string2 != null && !string2.isBlank()) {
-            textureSelectionButton2.setTexture(new TextureHolder(this.app.getWorkspace(), string2));
+            try {
+                textureSelectionButton2.setTexture(new TextureHolder(this.app.getWorkspace(), string2));
+            }
+            catch (RuntimeException exception) {
+                System.err.println("[CustomBookCreator] Ignoring an invalid or missing button texture: " + string2);
+            }
         }
     }
 
@@ -1324,10 +1311,7 @@ extends ModElementGUI<CustomBook> {
         }
         try {
             File file = jFileChooser.getSelectedFile();
-            BufferedImage bufferedImage = ImageIO.read(file);
-            if (bufferedImage == null) {
-                throw new IOException(CustomBookGUI.tr("error.unrecognized_image"));
-            }
+            BufferedImage bufferedImage = CustomBookGUI.decodePng(file);
             String string = this.copyScreenTexture(file, CustomBookGUI.baseName(file));
             int n = Math.min(180, Math.max(16, bufferedImage.getWidth()));
             int n2 = Math.min(180, Math.max(16, bufferedImage.getHeight() * n / Math.max(1, bufferedImage.getWidth())));
@@ -1359,10 +1343,27 @@ extends ModElementGUI<CustomBook> {
             File file = this.screenTextureFolder();
             String string = CustomBookGUI.uniqueResourceBase(CustomBookGUI.baseName(jFileChooser.getSelectedFile()) + "_gif", file);
             ArrayList<String> arrayList = new ArrayList<String>();
-            for (n = 0; n < gifData.frames.size(); ++n) {
-                String string2 = string + "_" + n;
-                ImageIO.write((RenderedImage)gifData.frames.get(n), "png", new File(file, string2 + ".png"));
-                arrayList.add(string2);
+            ArrayList<File> writtenFiles = new ArrayList<File>();
+            try {
+                for (n = 0; n < gifData.frames.size(); ++n) {
+                    String string2 = string + "_" + n;
+                    File outputFile = new File(file, string2 + ".png");
+                    if (!ImageIO.write((RenderedImage)gifData.frames.get(n), "png", outputFile)) {
+                        throw new IOException(CustomBookGUI.tr("error.unrecognized_image"));
+                    }
+                    writtenFiles.add(outputFile);
+                    arrayList.add(string2);
+                }
+            }
+            catch (Exception exception) {
+                for (File writtenFile : writtenFiles) {
+                    try {
+                        Files.deleteIfExists(writtenFile.toPath());
+                    }
+                    catch (IOException ignored) {
+                    }
+                }
+                throw exception;
             }
             n = Math.min(180, Math.max(16, gifData.width));
             int n2 = Math.min(180, Math.max(16, gifData.height * n / Math.max(1, gifData.width)));
@@ -1597,13 +1598,17 @@ extends ModElementGUI<CustomBook> {
         Matcher matcher = Pattern.compile("(?s)^\\[size=\\d+\\](.*)\\[/size\\]$").matcher(string2);
         String string3 = matcher.matches() ? matcher.group(1) : string2;
         String string4 = "[size=" + n + "]" + string3 + "[/size]";
-        boolean bl = this.loadingElement;
+        boolean previousLoadingState = this.loadingElement;
         this.loadingElement = true;
-        this.textEditor.select(n2, n3);
-        this.textEditor.replaceSelection(string4);
-        this.textEditor.select(n2, n2 + string4.length());
-        this.loadingElement = bl;
-        this.activeElement.content = CustomBookGUI.limit(this.textEditor.getText(), Short.MAX_VALUE);
+        try {
+            this.textEditor.select(n2, n3);
+            this.textEditor.replaceSelection(string4);
+            this.textEditor.select(n2, n2 + string4.length());
+        }
+        finally {
+            this.loadingElement = previousLoadingState;
+        }
+        this.activeElement.content = CustomBookGUI.limit(this.textEditor.getText(), MAX_TEXT_LENGTH);
         this.syncLegacyPageContent();
         this.previewCanvas.repaint();
     }
@@ -1850,6 +1855,7 @@ extends ModElementGUI<CustomBook> {
             this.treeModel.reload(defaultMutableTreeNode2);
         }
         this.syncCategoryPageListsFromTree();
+        this.repairButtonTargets();
         this.refreshCategoryTargets();
         this.activePage = null;
         this.selectFirstPage();
@@ -1905,6 +1911,61 @@ extends ModElementGUI<CustomBook> {
         }
     }
 
+    private void repairButtonTargets() {
+        Map<String, String> pageCategories = new HashMap<String, String>();
+        Set<String> categoryIds = new HashSet<String>();
+        String fallbackCategoryId = "";
+        for (int i = 0; i < this.rootNode.getChildCount(); ++i) {
+            if (!(this.rootNode.getChildAt(i) instanceof DefaultMutableTreeNode categoryNode)
+                    || !(categoryNode.getUserObject() instanceof CustomBook.BookCategory category)) {
+                continue;
+            }
+            if (fallbackCategoryId.isBlank()) {
+                fallbackCategoryId = category.id;
+            }
+            categoryIds.add(category.id);
+            for (int j = 0; j < categoryNode.getChildCount(); ++j) {
+                if (categoryNode.getChildAt(j) instanceof DefaultMutableTreeNode pageNode
+                        && pageNode.getUserObject() instanceof CustomBook.BookPage page) {
+                    pageCategories.putIfAbsent(page.id, category.id);
+                }
+            }
+        }
+        if (fallbackCategoryId.isBlank()) {
+            return;
+        }
+        for (int i = 0; i < this.rootNode.getChildCount(); ++i) {
+            if (!(this.rootNode.getChildAt(i) instanceof DefaultMutableTreeNode categoryNode)) {
+                continue;
+            }
+            for (int j = 0; j < categoryNode.getChildCount(); ++j) {
+                if (!(categoryNode.getChildAt(j) instanceof DefaultMutableTreeNode pageNode)
+                        || !(pageNode.getUserObject() instanceof CustomBook.BookPage page)
+                        || page.elements == null) {
+                    continue;
+                }
+                for (CustomBook.BookElement element : page.elements) {
+                    if (element == null || !"BUTTON".equals(element.type)) {
+                        continue;
+                    }
+                    String targetPageId = element.targetPageId == null ? "" : element.targetPageId;
+                    element.targetPageId = targetPageId;
+                    if (!targetPageId.isBlank()) {
+                        String owningCategory = pageCategories.get(targetPageId);
+                        if (owningCategory != null) {
+                            element.targetCategoryId = owningCategory;
+                            continue;
+                        }
+                        element.targetPageId = "";
+                    }
+                    if (element.targetCategoryId == null || !categoryIds.contains(element.targetCategoryId)) {
+                        element.targetCategoryId = fallbackCategoryId;
+                    }
+                }
+            }
+        }
+    }
+
     private List<PageRef> collectPageRefs() {
         ArrayList<PageRef> arrayList = new ArrayList<PageRef>();
         for (int i = 0; i < this.rootNode.getChildCount(); ++i) {
@@ -1929,39 +1990,46 @@ extends ModElementGUI<CustomBook> {
 
     private void refreshCategoryTargets() {
         String string = this.activeElement != null ? this.activeElement.targetCategoryId : "";
+        boolean previousLoadingState = this.loadingElement;
         this.loadingElement = true;
-        this.buttonTarget.removeAllItems();
-        for (CategoryRef categoryRef : this.collectCategoryRefs()) {
-            this.buttonTarget.addItem(categoryRef);
+        try {
+            this.buttonTarget.removeAllItems();
+            for (CategoryRef categoryRef : this.collectCategoryRefs()) {
+                this.buttonTarget.addItem(categoryRef);
+            }
+            this.selectCategoryRef(string);
         }
-        this.selectCategoryRef(string);
-        this.loadingElement = false;
+        finally {
+            this.loadingElement = previousLoadingState;
+        }
     }
 
     private void refreshButtonPageTargets(String string, String string2) {
-        boolean bl = this.loadingElement;
+        boolean previousLoadingState = this.loadingElement;
         this.loadingElement = true;
-        this.buttonPageTarget.removeAllItems();
-        if (string == null) {
-            string = "";
+        try {
+            this.buttonPageTarget.removeAllItems();
+            if (string == null) {
+                string = "";
+            }
+            this.buttonPageTarget.addItem(new PageRef("", string, CustomBookGUI.tr("target.first_category_page")));
+            for (PageRef pageRef : this.collectPageRefs()) {
+                if (!pageRef.categoryId.equals(string)) continue;
+                this.buttonPageTarget.addItem(pageRef);
+            }
+            for (int i = 0; i < this.buttonPageTarget.getItemCount(); ++i) {
+                PageRef pageRef = this.buttonPageTarget.getItemAt(i);
+                if (!pageRef.id.equals(string2 == null ? "" : string2)) continue;
+                this.buttonPageTarget.setSelectedIndex(i);
+                return;
+            }
+            if (this.buttonPageTarget.getItemCount() > 0) {
+                this.buttonPageTarget.setSelectedIndex(0);
+            }
         }
-        this.buttonPageTarget.addItem(new PageRef("", string, CustomBookGUI.tr("target.first_category_page")));
-        for (PageRef pageRef : this.collectPageRefs()) {
-            if (!pageRef.categoryId.equals(string)) continue;
-            this.buttonPageTarget.addItem(pageRef);
+        finally {
+            this.loadingElement = previousLoadingState;
         }
-        for (int i = 0; i < this.buttonPageTarget.getItemCount(); ++i) {
-            PageRef pageRef;
-            pageRef = this.buttonPageTarget.getItemAt(i);
-            if (!pageRef.id.equals(string2 == null ? "" : string2)) continue;
-            this.buttonPageTarget.setSelectedIndex(i);
-            this.loadingElement = bl;
-            return;
-        }
-        if (this.buttonPageTarget.getItemCount() > 0) {
-            this.buttonPageTarget.setSelectedIndex(0);
-        }
-        this.loadingElement = bl;
     }
 
     private void selectCategoryRef(String string) {
@@ -2006,7 +2074,10 @@ extends ModElementGUI<CustomBook> {
     }
 
     private static String sanitizeResourceName(String string) {
-        String string2 = string.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9_./-]", "_");
+        if (string == null) {
+            return "";
+        }
+        String string2 = string.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9_-]", "_");
         string2 = string2.replaceAll("_+", "_");
         return string2.replaceAll("^_+|_+$", "");
     }
@@ -2057,41 +2128,28 @@ extends ModElementGUI<CustomBook> {
 
     private String markupToHtml(String string) {
         Pattern pattern = Pattern.compile("\\[(/?)(b|i|u|s|obf|size|color|url|page)(?:=([^\\]]+))?\\]", 2);
-        Matcher matcher = pattern.matcher(string == null ? "" : string);
+        String markup = string == null ? "" : string;
+        Matcher matcher = pattern.matcher(markup);
         StringBuilder stringBuilder = new StringBuilder();
+        Deque<String> openTags = new ArrayDeque<String>();
         int n = 0;
         while (matcher.find()) {
-            stringBuilder.append(CustomBookGUI.escapeHtmlBreakable(string.substring(n, matcher.start())));
+            stringBuilder.append(CustomBookGUI.escapeHtmlBreakable(markup.substring(n, matcher.start())));
             boolean bl = !matcher.group(1).isEmpty();
             String string2 = matcher.group(2).toLowerCase(Locale.ROOT);
             String string3 = matcher.group(3);
             if (bl) {
-                switch (string2) {
-                    case "b": {
-                        stringBuilder.append("</b>");
-                        break;
-                    }
-                    case "i": {
-                        stringBuilder.append("</i>");
-                        break;
-                    }
-                    case "u": {
-                        stringBuilder.append("</u>");
-                        break;
-                    }
-                    case "s": 
-                    case "obf": 
-                    case "size": 
-                    case "color": {
-                        stringBuilder.append("</span>");
-                        break;
-                    }
-                    case "url": 
-                    case "page": {
-                        stringBuilder.append("</span>");
-                    }
+                // Match the runtime parser: ignore an unmatched close, otherwise
+                // close it and any styles still nested inside it.
+                if (openTags.contains(string2)) {
+                    String closedTag;
+                    do {
+                        closedTag = openTags.pop();
+                        stringBuilder.append(closingHtmlTag(closedTag));
+                    } while (!closedTag.equals(string2));
                 }
             } else {
+                openTags.push(string2);
                 switch (string2) {
                     case "b": {
                         stringBuilder.append("<b>");
@@ -2129,8 +2187,18 @@ extends ModElementGUI<CustomBook> {
             }
             n = matcher.end();
         }
-        stringBuilder.append(CustomBookGUI.escapeHtmlBreakable((string == null ? "" : string).substring(n)));
+        stringBuilder.append(CustomBookGUI.escapeHtmlBreakable(markup.substring(n)));
+        while (!openTags.isEmpty()) {
+            stringBuilder.append(closingHtmlTag(openTags.pop()));
+        }
         return stringBuilder.toString();
+    }
+
+    private static String closingHtmlTag(String tag) {
+        return switch (tag) {
+            case "b", "i", "u" -> "</" + tag + ">";
+            default -> "</span>";
+        };
     }
 
     private static String escapeHtmlBreakable(String string) {
@@ -2141,23 +2209,25 @@ extends ModElementGUI<CustomBook> {
         StringBuilder stringBuilder = new StringBuilder(string2.length() * 2);
         boolean bl = false;
         boolean bl2 = false;
-        for (int i = 0; i < string2.length(); ++i) {
-            char c;
-            char c2 = string2.charAt(i);
+        for (int i = 0; i < string2.length();) {
+            int c2 = string2.codePointAt(i);
+            i += Character.charCount(c2);
             if (c2 == '<') {
                 bl2 = true;
             }
             if (c2 == '&') {
                 bl = true;
             }
-            stringBuilder.append(c2);
+            stringBuilder.appendCodePoint(c2);
             if (c2 == '>') {
                 bl2 = false;
             }
             if (c2 == ';' && bl) {
                 bl = false;
             }
-            if (bl2 || bl || c2 == ' ' || c2 == '>' || c2 == ';' || c2 == '\n' || i + 1 >= string2.length() || (c = string2.charAt(i + 1)) == '<' || c == '&' || c == ' ') continue;
+            if (bl2 || bl || c2 == ' ' || c2 == '>' || c2 == ';' || c2 == '\n' || i >= string2.length()) continue;
+            int next = string2.codePointAt(i);
+            if (next == '<' || next == '&' || next == ' ') continue;
             stringBuilder.append("&#8203;");
         }
         return stringBuilder.toString();
@@ -2190,12 +2260,12 @@ extends ModElementGUI<CustomBook> {
     public void openInEditingMode(CustomBook customBook) {
         ArrayList<TabEntry> arrayList;
         this.displayName.setText(customBook.name == null ? "Custom Book" : customBook.name);
-        this.bookTitle.setText(customBook.bookTitle == null ? this.displayName.getText() : customBook.bookTitle);
-        this.author.setText(customBook.author == null ? "Unknown" : customBook.author);
-        this.generation.setValue(Math.max(0, Math.min(3, customBook.generation)));
-        this.rarity.setSelectedItem(customBook.rarity == null ? "COMMON" : customBook.rarity);
-        this.stackSize.setValue(Math.max(1, Math.min(64, customBook.stackSize <= 0 ? 1 : customBook.stackSize)));
-        this.enchantability.setValue(Math.max(0, customBook.enchantability));
+        this.bookTitle.setText(customBook.getSafeBookTitle());
+        this.author.setText(customBook.getSafeAuthor());
+        this.generation.setValue(customBook.getSafeGeneration());
+        this.rarity.setSelectedItem(customBook.getSafeRarity());
+        this.stackSize.setValue(customBook.getSafeStackSize());
+        this.enchantability.setValue(customBook.getSafeEnchantability());
         this.immuneToFire.setSelected(customBook.immuneToFire);
         this.piglinCurrency.setSelected(customBook.isPiglinCurrency);
         this.destroyAnyBlock.setSelected(customBook.destroyAnyBlock);
@@ -2203,13 +2273,21 @@ extends ModElementGUI<CustomBook> {
         this.hideNextArrowAtCategoryEnd.setSelected(customBook.hideNextArrowAtCategoryEnd);
         this.glow.setSelected(customBook.glow);
         ArrayList<TabEntry> arrayList2 = arrayList = customBook.creativeTabs == null ? new ArrayList<TabEntry>() : new ArrayList<TabEntry>(customBook.creativeTabs);
+        arrayList.removeIf(tabEntry -> tabEntry == null);
         if (arrayList.isEmpty()) {
             arrayList.add(new TabEntry(this.app.getWorkspace(), customBook.creativeTab == null ? "TOOLS" : customBook.creativeTab));
         }
         this.creativeTabsField.setListElements(arrayList);
         String string = customBook.getEffectiveItemTexture();
+        this.clearTextureSelection(this.itemTexture);
         if (!string.isBlank()) {
-            this.itemTexture.setTexture(new TextureHolder(this.app.getWorkspace(), string));
+            try {
+                this.itemTexture.setTexture(new TextureHolder(this.app.getWorkspace(), string));
+            }
+            catch (RuntimeException exception) {
+                System.err.println("[CustomBookCreator] Ignoring an invalid or missing item texture: " + string);
+                exception.printStackTrace();
+            }
         }
         this.selectItemModel(customBook.renderType, customBook.customModelName);
         this.rootNode.removeAllChildren();
@@ -2223,6 +2301,8 @@ extends ModElementGUI<CustomBook> {
         }
         this.treeModel.reload();
         this.ensureDefaultStructure();
+        this.syncCategoryPageListsFromTree();
+        this.repairButtonTargets();
         this.refreshCategoryTargets();
         this.selectFirstPage();
     }
@@ -2246,6 +2326,9 @@ extends ModElementGUI<CustomBook> {
         bookCategory2.pages.clear();
         if (bookCategory.pages != null) {
             for (CustomBook.BookPage bookPage : bookCategory.pages) {
+                if (bookPage == null) {
+                    continue;
+                }
                 bookPage.normalizeElements();
                 CustomBook.BookPage bookPage2 = new CustomBook.BookPage(bookPage.title == null ? "Page" : bookPage.title, "");
                 bookPage2.id = bookPage.id == null || bookPage.id.isBlank() ? UUID.randomUUID().toString() : bookPage.id;
@@ -2298,10 +2381,12 @@ extends ModElementGUI<CustomBook> {
 
     @Override
     public CustomBook getElementFromGUI() {
+        this.syncCategoryPageListsFromTree();
+        this.repairButtonTargets();
         CustomBook customBook = new CustomBook(this.modElement);
         customBook.name = CustomBookGUI.safeText(this.displayName, this.modElement.getName());
         customBook.bookTitle = CustomBookGUI.limit(CustomBookGUI.safeText(this.bookTitle, customBook.name), 32);
-        customBook.author = CustomBookGUI.safeText(this.author, "Unknown");
+        customBook.author = CustomBookGUI.limit(CustomBookGUI.safeText(this.author, "Unknown"), 256);
         customBook.generation = this.safeSpinnerInt(this.generation, 0, 0, 3);
         customBook.rarity = CustomBookGUI.safeComboString(this.rarity, "COMMON");
         customBook.stackSize = this.safeSpinnerInt(this.stackSize, 1, 1, 64);
@@ -2436,37 +2521,89 @@ extends ModElementGUI<CustomBook> {
         if (string == null) {
             return "";
         }
-        return string.length() <= n ? string : string.substring(0, n);
+        if (string.length() <= n) {
+            return string;
+        }
+        int end = Math.max(0, n);
+        if (end > 0 && Character.isHighSurrogate(string.charAt(end - 1))
+                && Character.isLowSurrogate(string.charAt(end))) {
+            --end;
+        }
+        return string.substring(0, end);
     }
 
     public URI contextURL() {
         return null;
     }
 
-    /*
-     * WARNING - Removed try catching itself - possible behaviour change.
-     */
+    private static BufferedImage decodePng(File file) throws IOException {
+        try (ImageInputStream input = ImageIO.createImageInputStream(file)) {
+            if (input == null) {
+                throw new IOException(CustomBookGUI.tr("error.unrecognized_image"));
+            }
+            Iterator<ImageReader> readers = ImageIO.getImageReaders(input);
+            if (!readers.hasNext()) {
+                throw new IOException(CustomBookGUI.tr("error.unrecognized_image"));
+            }
+            ImageReader reader = readers.next();
+            try {
+                if (!"png".equalsIgnoreCase(reader.getFormatName())) {
+                    throw new IOException(CustomBookGUI.tr("error.unrecognized_image"));
+                }
+                reader.setInput(input, true, true);
+                CustomBookGUI.validateMediaDimensions(reader.getWidth(0), reader.getHeight(0));
+                BufferedImage image = reader.read(0);
+                if (image == null) {
+                    throw new IOException(CustomBookGUI.tr("error.unrecognized_image"));
+                }
+                return image;
+            }
+            finally {
+                reader.dispose();
+            }
+        }
+    }
+
     private static GifData decodeGif(File file) throws IOException {
         ArrayList<BufferedImage> arrayList = new ArrayList<BufferedImage>();
         ArrayList<Integer> arrayList2 = new ArrayList<Integer>();
         try (ImageInputStream imageInputStream = ImageIO.createImageInputStream(file);){
+            if (imageInputStream == null) {
+                throw new IOException(CustomBookGUI.tr("error.unrecognized_image"));
+            }
             ImageReader imageReader;
-            Iterator<ImageReader> iterator = ImageIO.getImageReadersByFormatName("gif");
+            Iterator<ImageReader> iterator = ImageIO.getImageReaders(imageInputStream);
             ImageReader imageReader2 = imageReader = iterator.hasNext() ? iterator.next() : null;
             if (imageReader == null) {
                 throw new IOException(CustomBookGUI.tr("error.gif_reader_unavailable"));
             }
             try {
+                if (!"gif".equalsIgnoreCase(imageReader.getFormatName())) {
+                    throw new IOException(CustomBookGUI.tr("error.unrecognized_image"));
+                }
                 Object object;
                 Object object2;
                 imageReader.setInput(imageInputStream, false, false);
                 int n = imageReader.getNumImages(true);
+                if (n <= 0) {
+                    throw new IOException(CustomBookGUI.tr("error.gif_no_frames"));
+                }
+                if (n > MAX_GIF_FRAMES) {
+                    throw new IOException(CustomBookGUI.tr("error.unrecognized_image"));
+                }
                 int n2 = 0;
                 int n3 = 0;
+                long decodedPixels = 0L;
                 IIOMetadata iIOMetadata = imageReader.getStreamMetadata();
                 if (iIOMetadata != null && (object2 = CustomBookGUI.findNode((Node)(object = iIOMetadata.getAsTree(iIOMetadata.getNativeMetadataFormatName())), "LogicalScreenDescriptor")) != null) {
                     n2 = CustomBookGUI.intAttr((Node)object2, "logicalScreenWidth", 0);
                     n3 = CustomBookGUI.intAttr((Node)object2, "logicalScreenHeight", 0);
+                    if (n2 > 0 && n3 > 0) {
+                        CustomBookGUI.validateMediaDimensions(n2, n3);
+                        if ((long)n2 * (long)n3 * (long)n > MAX_DECODED_GIF_PIXELS) {
+                            throw new IOException(CustomBookGUI.tr("error.unrecognized_image"));
+                        }
+                    }
                 }
                 object = null;
                 object2 = null;
@@ -2475,6 +2612,7 @@ extends ModElementGUI<CustomBook> {
                 for (int i = 0; i < n; ++i) {
                     Graphics2D graphics2D;
                     String string2;
+                    CustomBookGUI.validateMediaDimensions(imageReader.getWidth(i), imageReader.getHeight(i));
                     BufferedImage bufferedImage = imageReader.read(i);
                     IIOMetadata iIOMetadata2 = imageReader.getImageMetadata(i);
                     Node node = iIOMetadata2.getAsTree(iIOMetadata2.getNativeMetadataFormatName());
@@ -2491,6 +2629,11 @@ extends ModElementGUI<CustomBook> {
                     }
                     if (n3 <= 0) {
                         n3 = Math.max(bufferedImage.getHeight(), n5 + n7);
+                    }
+                    CustomBookGUI.validateMediaDimensions(n2, n3);
+                    decodedPixels += (long)n2 * (long)n3;
+                    if (decodedPixels > MAX_DECODED_GIF_PIXELS) {
+                        throw new IOException(CustomBookGUI.tr("error.unrecognized_image"));
                     }
                     if (object == null) {
                         object = new BufferedImage(n2, n3, 2);
@@ -2525,6 +2668,13 @@ extends ModElementGUI<CustomBook> {
                 imageReader.dispose();
                 throw throwable;
             }
+        }
+    }
+
+    private static void validateMediaDimensions(int width, int height) throws IOException {
+        if (width <= 0 || height <= 0 || width > MAX_MEDIA_DIMENSION || height > MAX_MEDIA_DIMENSION
+                || (long)width * (long)height > MAX_DECODED_GIF_PIXELS) {
+            throw new IOException(CustomBookGUI.tr("error.unrecognized_image"));
         }
     }
 
@@ -3155,7 +3305,10 @@ extends ModElementGUI<CustomBook> {
 
         @Override
         public boolean canImport(TransferSupport support) {
-            if (!support.isDrop() || !support.isDataFlavorSupported(this.nodeFlavor) || this.draggedNode == null) {
+            if (!support.isDrop() || support.getComponent() != CustomBookGUI.this.bookTree
+                    || !support.isDataFlavorSupported(this.nodeFlavor) || this.draggedNode == null
+                    || this.draggedNode == CustomBookGUI.this.rootNode
+                    || this.draggedNode.getRoot() != CustomBookGUI.this.rootNode) {
                 return false;
             }
             support.setDropAction(MOVE);
@@ -3177,14 +3330,15 @@ extends ModElementGUI<CustomBook> {
             if (!this.canImport(support)) {
                 return false;
             }
+            DefaultMutableTreeNode source = this.draggedNode;
+            DefaultMutableTreeNode oldParent = source == null ? null : (DefaultMutableTreeNode)source.getParent();
+            DefaultMutableTreeNode replacementNode = null;
+            int oldIndex = oldParent == null || source == null ? -1 : oldParent.getIndex(source);
             try {
-                DefaultMutableTreeNode source = this.draggedNode;
                 TreeDropDestination destination = this.destinationFor(support, source);
-                if (destination == null) {
+                if (destination == null || oldParent == null || oldIndex < 0) {
                     return false;
                 }
-                DefaultMutableTreeNode oldParent = (DefaultMutableTreeNode)source.getParent();
-                int oldIndex = oldParent.getIndex(source);
                 int insertionIndex = destination.index;
                 if (oldParent == destination.parent && oldIndex < insertionIndex) {
                     insertionIndex--;
@@ -3196,7 +3350,8 @@ extends ModElementGUI<CustomBook> {
                         && source.getUserObject() instanceof CustomBook.BookPage) {
                     CustomBook.BookPage replacementPage = new CustomBook.BookPage(CustomBookGUI.tr("default.page", 1), "");
                     CustomBookGUI.this.ensureNavigationElements(replacementPage);
-                    CustomBookGUI.this.treeModel.insertNodeInto(new DefaultMutableTreeNode(replacementPage), oldParent, 0);
+                    replacementNode = new DefaultMutableTreeNode(replacementPage);
+                    CustomBookGUI.this.treeModel.insertNodeInto(replacementNode, oldParent, 0);
                 }
                 CustomBookGUI.this.treeModel.insertNodeInto(source, destination.parent, insertionIndex);
                 if (oldParent != destination.parent
@@ -3205,6 +3360,7 @@ extends ModElementGUI<CustomBook> {
                     CustomBookGUI.this.updateMovedPageButtonTargets(movedPage.id, destinationCategory.id);
                 }
                 CustomBookGUI.this.syncCategoryPageListsFromTree();
+                CustomBookGUI.this.repairButtonTargets();
                 CustomBookGUI.this.refreshCategoryTargets();
 
                 TreePath parentPath = new TreePath(destination.parent.getPath());
@@ -3214,6 +3370,26 @@ extends ModElementGUI<CustomBook> {
                 return true;
             }
             catch (RuntimeException exception) {
+                try {
+                    if (source != null && source.getParent() instanceof DefaultMutableTreeNode currentParent) {
+                        CustomBookGUI.this.treeModel.removeNodeFromParent(source);
+                    }
+                    if (replacementNode != null && replacementNode.getParent() != null) {
+                        CustomBookGUI.this.treeModel.removeNodeFromParent(replacementNode);
+                    }
+                    if (source != null && oldParent != null && source.getParent() == null) {
+                        CustomBookGUI.this.treeModel.insertNodeInto(source, oldParent,
+                                Math.max(0, Math.min(oldIndex, oldParent.getChildCount())));
+                    }
+                    CustomBookGUI.this.syncCategoryPageListsFromTree();
+                    CustomBookGUI.this.repairButtonTargets();
+                    CustomBookGUI.this.refreshCategoryTargets();
+                }
+                catch (RuntimeException rollbackException) {
+                    exception.addSuppressed(rollbackException);
+                }
+                System.err.println("[CustomBookCreator] Book tree move failed and was rolled back.");
+                exception.printStackTrace();
                 return false;
             }
         }
@@ -3228,7 +3404,9 @@ extends ModElementGUI<CustomBook> {
                 return null;
             }
             TreePath path = location.getPath();
-            if (path == null || !(path.getLastPathComponent() instanceof DefaultMutableTreeNode target)) {
+            if (path == null || !(path.getLastPathComponent() instanceof DefaultMutableTreeNode target)
+                    || target.getRoot() != CustomBookGUI.this.rootNode
+                    || !path.equals(new TreePath(target.getPath()))) {
                 return null;
             }
             int childIndex = location.getChildIndex();

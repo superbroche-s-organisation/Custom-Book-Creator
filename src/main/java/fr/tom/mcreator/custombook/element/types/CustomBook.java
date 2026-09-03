@@ -6,8 +6,10 @@ import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import net.mcreator.element.GeneratableElement;
 import net.mcreator.element.parts.TabEntry;
@@ -30,6 +32,10 @@ implements IItem,
 ITabContainedElement,
 IItemWithModel,
 IItemWithTexture {
+    private static final int MAX_STRUCTURAL_LABEL_LENGTH = 256;
+    private static final int MAX_BUTTON_LABEL_LENGTH = 1024;
+    private static final int MAX_TEXT_LENGTH = Short.MAX_VALUE;
+    private static final int MAX_JAVA_STRING_CHUNK_LENGTH = 16000;
     public String name = "Custom Book";
     public String bookTitle = "Custom Book";
     public String author = "Unknown";
@@ -69,49 +75,88 @@ IItemWithTexture {
     }
 
     public List<BookCategory> getBookCategories() {
-        if (this.categories != null && !this.categories.isEmpty()) {
-            CustomBook.normalizeStructure(this.categories);
-            return this.categories;
+        if (this.categories == null) {
+            this.categories = new ArrayList<BookCategory>();
         }
-        ArrayList<BookCategory> arrayList = new ArrayList<BookCategory>();
-        BookCategory bookCategory = new BookCategory("General");
-        if (this.pages != null && !this.pages.isEmpty()) {
-            int n = 1;
-            for (String string : this.pages) {
-                bookCategory.pages.add(new BookPage("Page " + n++, string == null ? "" : string));
+        if (this.categories.isEmpty() || this.shouldMigrateLegacyPages()) {
+            this.categories.clear();
+            BookCategory bookCategory = new BookCategory("General");
+            if (this.pages != null && !this.pages.isEmpty()) {
+                int n = 1;
+                for (String string : this.pages) {
+                    bookCategory.pages.add(new BookPage("Page " + n++, string == null ? "" : string));
+                }
             }
+            if (bookCategory.pages.isEmpty()) {
+                bookCategory.pages.add(new BookPage("Page 1", ""));
+            }
+            this.categories.add(bookCategory);
         }
-        if (bookCategory.pages.isEmpty()) {
-            bookCategory.pages.add(new BookPage("Page 1", ""));
+        CustomBook.normalizeStructure(this.categories);
+        return this.categories;
+    }
+
+    private boolean shouldMigrateLegacyPages() {
+        if (this.pages == null || this.pages.isEmpty() || this.categories.size() != 1) {
+            return false;
         }
-        arrayList.add(bookCategory);
-        return arrayList;
+        BookCategory category = this.categories.get(0);
+        if (category == null || category.pages == null || category.pages.size() != 1) {
+            return false;
+        }
+        BookPage page = category.pages.get(0);
+        if (page == null) {
+            return true;
+        }
+        boolean defaultTitle = page.title == null || page.title.isBlank() || "Page 1".equals(page.title);
+        boolean emptyLegacyContent = page.content == null || page.content.isBlank();
+        boolean emptyElements = page.elements == null || page.elements.isEmpty()
+                || page.elements.stream().allMatch(element -> element == null
+                        || "TEXT".equals(element.type) && (element.content == null || element.content.isBlank()));
+        return defaultTitle && emptyLegacyContent && emptyElements;
     }
 
     private static void normalizeStructure(List<BookCategory> list) {
-        for (BookCategory bookCategory : list) {
-            if (bookCategory.id == null || bookCategory.id.isBlank()) {
+        Set<String> categoryIds = new HashSet<String>();
+        Set<String> pageIds = new HashSet<String>();
+        for (int categoryIndex = 0; categoryIndex < list.size(); ++categoryIndex) {
+            BookCategory bookCategory = list.get(categoryIndex);
+            if (bookCategory == null) {
+                bookCategory = new BookCategory("Category");
+                list.set(categoryIndex, bookCategory);
+            }
+            if (bookCategory.id == null || bookCategory.id.isBlank() || !categoryIds.add(bookCategory.id)) {
                 bookCategory.id = UUID.randomUUID().toString();
+                categoryIds.add(bookCategory.id);
             }
             if (bookCategory.name == null || bookCategory.name.isBlank()) {
                 bookCategory.name = "Category";
             }
+            bookCategory.name = limit(bookCategory.name, MAX_STRUCTURAL_LABEL_LENGTH);
             if (bookCategory.pages == null) {
                 bookCategory.pages = new ArrayList<BookPage>();
             }
             if (bookCategory.pages.isEmpty()) {
                 bookCategory.pages.add(new BookPage("Page 1", ""));
             }
-            for (BookPage bookPage : bookCategory.pages) {
-                if (bookPage.id == null || bookPage.id.isBlank()) {
+            for (int pageIndex = 0; pageIndex < bookCategory.pages.size(); ++pageIndex) {
+                BookPage bookPage = bookCategory.pages.get(pageIndex);
+                if (bookPage == null) {
+                    bookPage = new BookPage("Page", "");
+                    bookCategory.pages.set(pageIndex, bookPage);
+                }
+                if (bookPage.id == null || bookPage.id.isBlank() || !pageIds.add(bookPage.id)) {
                     bookPage.id = UUID.randomUUID().toString();
+                    pageIds.add(bookPage.id);
                 }
                 if (bookPage.title == null || bookPage.title.isBlank()) {
                     bookPage.title = "Page";
                 }
+                bookPage.title = limit(bookPage.title, MAX_STRUCTURAL_LABEL_LENGTH);
                 if (bookPage.content == null) {
                     bookPage.content = "";
                 }
+                bookPage.content = limit(bookPage.content, MAX_TEXT_LENGTH);
                 bookPage.normalizeElements();
             }
         }
@@ -119,46 +164,165 @@ IItemWithTexture {
 
     public String getEffectiveItemTexture() {
         if (this.itemTexture != null && !this.itemTexture.isBlank()) {
-            return this.itemTexture;
+            String normalizedTexture = normalizeItemTextureReference(this.itemTexture);
+            if (!normalizedTexture.isBlank()) {
+                return normalizedTexture;
+            }
         }
-        if (this.texturePath != null && !this.texturePath.isBlank() && !this.texturePath.startsWith("minecraft:")) {
-            int n = this.texturePath.lastIndexOf(47);
-            return n >= 0 ? this.texturePath.substring(n + 1) : this.texturePath;
+        if (this.texturePath != null && !this.texturePath.isBlank()) {
+            String normalizedTexture = normalizeItemTextureReference(this.texturePath);
+            if (!"minecraft:written_book".equals(normalizedTexture)) {
+                return normalizedTexture;
+            }
         }
         return "";
+    }
+
+    private static String normalizeItemTextureReference(String value) {
+        String path = value == null ? "" : value.trim().replace('\\', '/');
+        int namespaceSeparator = path.indexOf(':');
+        if (namespaceSeparator != path.lastIndexOf(':')) {
+            return "";
+        }
+        String namespace = namespaceSeparator > 0 ? path.substring(0, namespaceSeparator) : "";
+        String resourcePath = namespaceSeparator > 0 ? path.substring(namespaceSeparator + 1) : path;
+        if (resourcePath.startsWith("textures/")) {
+            resourcePath = resourcePath.substring("textures/".length());
+        }
+        if (resourcePath.startsWith("item/")) {
+            resourcePath = resourcePath.substring("item/".length());
+        }
+        if (resourcePath.endsWith(".png")) {
+            resourcePath = resourcePath.substring(0, resourcePath.length() - 4);
+        }
+        if ((!namespace.isBlank() && !namespace.matches("[a-z0-9_.-]+"))
+                || !resourcePath.matches("[a-z0-9_./-]+") || resourcePath.contains("..")
+                || resourcePath.startsWith("/") || resourcePath.endsWith("/")) {
+            return "";
+        }
+        return namespace.isBlank() ? resourcePath : namespace + ":" + resourcePath;
+    }
+
+    public String getSafeBookTitle() {
+        return this.bookTitle == null || this.bookTitle.isBlank() ? "Custom Book" : limit(this.bookTitle, 32);
+    }
+
+    public String getSafeAuthor() {
+        return this.author == null || this.author.isBlank() ? "Unknown" : limit(this.author, 256);
+    }
+
+    public int getSafeGeneration() {
+        return Math.max(0, Math.min(3, this.generation));
+    }
+
+    public String getSafeRarity() {
+        return switch (this.rarity == null ? "COMMON" : this.rarity) {
+            case "UNCOMMON", "RARE", "EPIC" -> this.rarity;
+            default -> "COMMON";
+        };
+    }
+
+    public int getSafeStackSize() {
+        return Math.max(1, Math.min(64, this.stackSize));
+    }
+
+    public int getSafeEnchantability() {
+        return Math.max(0, Math.min(128000, this.enchantability));
+    }
+
+    public String getSafeCustomModelName() {
+        if (this.customModelName == null || this.customModelName.isBlank()) {
+            return "normal";
+        }
+        String modelName = this.customModelName.trim().replace('\\', '/');
+        int separator = modelName.indexOf(':');
+        String path = separator >= 0 ? modelName.substring(0, separator) : modelName;
+        if (path.endsWith(".json")) {
+            path = path.substring(0, path.length() - 5);
+        } else if (path.endsWith(".obj")) {
+            path = path.substring(0, path.length() - 4);
+        }
+        return path.matches("[a-zA-Z0-9_./-]+") && !path.contains("..")
+                && !path.startsWith("/") && !path.endsWith("/") ? path : "normal";
+    }
+
+    private static String limit(String value, int maximumLength) {
+        if (value.length() <= maximumLength) {
+            return value;
+        }
+        int end = maximumLength;
+        if (end > 0 && Character.isHighSurrogate(value.charAt(end - 1))
+                && Character.isLowSurrogate(value.charAt(end))) {
+            --end;
+        }
+        return value.substring(0, end);
     }
 
     public TextureHolder getTexture() {
         if (this.texture != null && !this.texture.isEmpty()) {
             return this.texture;
         }
+        if (this.getModElement() == null || this.getModElement().getWorkspace() == null) {
+            return this.texture;
+        }
         String string = this.getEffectiveItemTexture();
-        return new TextureHolder(this.getModElement().getWorkspace(), string);
+        return new TextureHolder(this.getModElement().getWorkspace(), string.isBlank() ? "minecraft:written_book" : string);
     }
 
     public Model getItemModel() {
-        return Model.getModelByParams((Workspace)this.getModElement().getWorkspace(), (String)(this.customModelName == null || this.customModelName.isBlank() ? "Normal" : this.customModelName), (Model.Type)CustomBook.decodeModelType(this.renderType));
+        if (this.getModElement() == null || this.getModElement().getWorkspace() == null) {
+            return null;
+        }
+        try {
+            Model.Type modelType = CustomBook.decodeModelType(this.renderType);
+            boolean useNormalModel = modelType == Model.Type.BUILTIN || !this.hasValidCustomModelName();
+            return Model.getModelByParams(this.getModElement().getWorkspace(),
+                    useNormalModel ? "Normal" : this.customModelName,
+                    useNormalModel ? Model.Type.BUILTIN : modelType);
+        }
+        catch (RuntimeException runtimeException) {
+            try {
+                return Model.getModelByParams((Workspace)this.getModElement().getWorkspace(), (String)"Normal", (Model.Type)Model.Type.BUILTIN);
+            }
+            catch (RuntimeException ignored) {
+                return null;
+            }
+        }
     }
 
     public Map<String, TextureHolder> getTextureMap() {
         TexturedModel texturedModel;
         Model model = this.getItemModel();
         if (model instanceof TexturedModel && (texturedModel = (TexturedModel)model).getTextureMapping() != null) {
-            return texturedModel.getTextureMapping().getTextureMap();
+            Map<String, TextureHolder> textureMap = texturedModel.getTextureMapping().getTextureMap();
+            if (textureMap != null && !textureMap.isEmpty()) {
+                HashMap<String, TextureHolder> safeTextureMap = new HashMap<String, TextureHolder>();
+                for (Map.Entry<String, TextureHolder> entry : textureMap.entrySet()) {
+                    if (entry.getKey() != null && !entry.getKey().isBlank() && entry.getValue() != null) {
+                        safeTextureMap.put(entry.getKey(), entry.getValue());
+                    }
+                }
+                return safeTextureMap;
+            }
         }
         return new HashMap<String, TextureHolder>();
     }
 
     public boolean hasNormalModel() {
-        return CustomBook.decodeModelType(this.renderType) == Model.Type.BUILTIN;
+        return CustomBook.decodeModelType(this.renderType) == Model.Type.BUILTIN || !this.hasValidCustomModelName();
     }
 
     public boolean hasCustomJSONModel() {
-        return CustomBook.decodeModelType(this.renderType) == Model.Type.JSON;
+        return CustomBook.decodeModelType(this.renderType) == Model.Type.JSON && this.hasValidCustomModelName();
     }
 
     public boolean hasCustomOBJModel() {
-        return CustomBook.decodeModelType(this.renderType) == Model.Type.OBJ;
+        return CustomBook.decodeModelType(this.renderType) == Model.Type.OBJ && this.hasValidCustomModelName();
+    }
+
+    private boolean hasValidCustomModelName() {
+        return this.customModelName != null && !this.customModelName.isBlank()
+                && !"normal".equalsIgnoreCase(this.getSafeCustomModelName());
     }
 
     public boolean hasCustomJAVAModel() {
@@ -202,10 +366,17 @@ IItemWithTexture {
     }
 
     public List<MCItem> providedMCItems() {
+        if (this.getModElement() == null) {
+            return List.of();
+        }
         return List.of(new MCItem.Custom(this.getModElement(), null, "item"));
     }
 
     public List<TabEntry> getCreativeTabs() {
+        if (this.creativeTabs == null) {
+            this.creativeTabs = new ArrayList<TabEntry>();
+        }
+        this.creativeTabs.removeIf(tabEntry -> tabEntry == null);
         return this.creativeTabs;
     }
 
@@ -228,7 +399,7 @@ IItemWithTexture {
         }
 
         public String toString() {
-            return this.name;
+            return this.name == null ? "Category" : this.name;
         }
     }
 
@@ -260,6 +431,7 @@ IItemWithTexture {
             if (this.elements == null) {
                 this.elements = new ArrayList<BookElement>();
             }
+            this.elements.removeIf(bookElement -> bookElement == null);
             String string = this.content == null ? "" : this.content;
             BookElement bookElement = null;
             boolean bl = false;
@@ -289,7 +461,7 @@ IItemWithTexture {
         }
 
         public String toString() {
-            return this.title;
+            return this.title == null ? "Page" : this.title;
         }
     }
 
@@ -360,16 +532,38 @@ IItemWithTexture {
             return bookElement;
         }
 
+        /** Java class files cap a single UTF-8 constant at 65,535 bytes. */
+        public List<String> getContentChunks() {
+            String value = this.content == null ? "" : this.content;
+            if (value.isEmpty()) {
+                return List.of("");
+            }
+            List<String> chunks = new ArrayList<String>();
+            for (int start = 0; start < value.length();) {
+                int end = Math.min(value.length(), start + MAX_JAVA_STRING_CHUNK_LENGTH);
+                if (end < value.length() && Character.isHighSurrogate(value.charAt(end - 1))
+                        && Character.isLowSurrogate(value.charAt(end))) {
+                    --end;
+                }
+                chunks.add(value.substring(start, end));
+                start = end;
+            }
+            return chunks;
+        }
+
         public void normalize() {
             if (this.id == null || this.id.isBlank()) {
                 this.id = UUID.randomUUID().toString();
             }
-            if (this.type == null || this.type.isBlank()) {
+            if (this.type == null || !(this.type.equals("TEXT") || this.type.equals("IMAGE")
+                    || this.type.equals("GIF") || this.type.equals("BUTTON")
+                    || this.type.equals("NAV_PREV") || this.type.equals("NAV_NEXT"))) {
                 this.type = "TEXT";
             }
             if (this.content == null) {
                 this.content = "";
             }
+            this.content = CustomBook.limit(this.content, MAX_TEXT_LENGTH);
             if (this.align == null || !this.align.equals("LEFT") && !this.align.equals("CENTER") && !this.align.equals("RIGHT")) {
                 this.align = "LEFT";
             }
@@ -379,9 +573,11 @@ IItemWithTexture {
             if (this.frames == null) {
                 this.frames = new ArrayList<String>();
             }
+            this.frames.removeIf(frame -> !BookElement.validResourceReference(frame));
             if (this.label == null) {
                 this.label = "Button";
             }
+            this.label = CustomBook.limit(this.label, MAX_BUTTON_LABEL_LENGTH);
             if (this.targetCategoryId == null) {
                 this.targetCategoryId = "";
             }
@@ -403,6 +599,12 @@ IItemWithTexture {
             if (this.buttonImageName == null) {
                 this.buttonImageName = "";
             }
+            if (!this.buttonImageName.isBlank() && !BookElement.validResourceReference(this.buttonImageName)) {
+                this.buttonImageName = "";
+            }
+            if (!this.mediaName.isBlank() && !BookElement.validResourceReference(this.mediaName)) {
+                this.mediaName = "";
+            }
             if (this.buttonImageType == null || !this.buttonImageType.equals("SCREEN") && !this.buttonImageType.equals("ITEM") && !this.buttonImageType.equals("BLOCK")) {
                 this.buttonImageType = "SCREEN";
             }
@@ -420,8 +622,14 @@ IItemWithTexture {
             return string != null && string.matches("#[0-9a-fA-F]{6}");
         }
 
+        private static boolean validResourceReference(String value) {
+            return value != null && !value.isBlank()
+                    && value.matches("(?:[a-z0-9_.-]+:)?[a-z0-9_./-]+")
+                    && !value.contains("..") && !value.startsWith("/") && !value.endsWith("/");
+        }
+
         public String toString() {
-            return switch (this.type) {
+            return switch (this.type == null ? "TEXT" : this.type) {
                 case "IMAGE" -> "Image";
                 case "GIF" -> "GIF";
                 case "BUTTON" -> "Button: " + this.label;

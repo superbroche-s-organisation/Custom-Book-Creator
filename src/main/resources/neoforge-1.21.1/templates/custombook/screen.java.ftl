@@ -30,6 +30,7 @@ public class ${name}BookScreen extends Screen {
     private static final int DESIGN_W = CONTENT_W + PAD * 2;
     private static final int DESIGN_H = PAGE_H + PAD * 2;
     private static final int DEFAULT_SIZE = 12;
+    private static final int CATEGORY_ROWS = 11;
     private static final boolean HIDE_NEXT_ARROW_AT_CATEGORY_END = ${data.hideNextArrowAtCategoryEnd?c};
     private static final Pattern TAG_PATTERN = Pattern.compile("\\[(/?)(b|i|u|s|obf|size|color|url|page)(?:=([^\\]]+))?\\]", Pattern.CASE_INSENSITIVE);
 
@@ -41,7 +42,7 @@ public class ${name}BookScreen extends Screen {
                 <#list page.getBookElements() as element>
                 new VisualElement(
                     "${element.type?j_string}", ${element.x}, ${element.y}, ${element.width}, ${element.height},
-                    "${element.content?j_string}", "${element.align?j_string}", "${element.mediaName?j_string}",
+                    String.join("", new String[] {<#list element.getContentChunks() as chunk>"${chunk?j_string}"<#sep>, </#sep></#list>}), "${element.align?j_string}", "${element.mediaName?j_string}",
                     new String[] {<#list element.frames as frame>"${frame?j_string}"<#sep>, </#sep></#list>}, ${element.frameDelay},
                     "${element.label?j_string}", "${element.targetCategoryId?j_string}", "${element.targetPageId?j_string}",
                     "${element.buttonStyle?j_string}", "${element.buttonBackgroundColor?j_string}", "${element.buttonBorderColor?j_string}",
@@ -57,12 +58,13 @@ public class ${name}BookScreen extends Screen {
     private final List<ClickRegion> clickRegions = new ArrayList<>();
     private int categoryIndex = 0;
     private int pageIndex = 0;
+    private int categoryListPage = 0;
     private float uiScale = 1f;
     private int originX = 0;
     private int originY = 0;
 
     public ${name}BookScreen() {
-        super(Component.literal("${data.bookTitle?j_string}"));
+        super(Component.literal("${data.getSafeBookTitle()?j_string}"));
     }
 
     @Override
@@ -95,7 +97,7 @@ public class ${name}BookScreen extends Screen {
         fillD(graphics, pageX - 3, pageY - 3, pageX + PAGE_W + 3, pageY + PAGE_H + 3, 0xFF6C5033);
         fillD(graphics, pageX, pageY, pageX + PAGE_W, pageY + PAGE_H, 0xFFFFF4D6);
 
-        drawCenteredD(graphics, Component.literal("${data.bookTitle?j_string}"), startX + SIDEBAR_W / 2, sideY + 16, 0xFFFFE5B8);
+        drawCenteredD(graphics, Component.literal("${data.getSafeBookTitle()?j_string}"), startX + SIDEBAR_W / 2, sideY + 16, 0xFFFFE5B8);
         renderCategories(graphics, startX + 13, sideY + 42, SIDEBAR_W - 26);
 
         Page page = currentPage();
@@ -181,16 +183,36 @@ public class ${name}BookScreen extends Screen {
     }
 
     private void renderCategories(GuiGraphics graphics, int x, int y, int w) {
+        int pageCount = Math.max(1, (CATEGORIES.length + CATEGORY_ROWS - 1) / CATEGORY_ROWS);
+        categoryListPage = Math.max(0, Math.min(categoryListPage, pageCount - 1));
+        int first = categoryListPage * CATEGORY_ROWS;
         int cy = y;
-        for (int i = 0; i < CATEGORIES.length; i++) {
+        for (int i = first; i < Math.min(CATEGORIES.length, first + CATEGORY_ROWS); i++) {
             Category category = CATEGORIES[i];
             boolean selected = i == categoryIndex;
             fillD(graphics, x - 4, cy - 4, x + w + 4, cy + 15, selected ? 0xFF5C4A3A : 0x00101010);
             drawTextD(graphics, Component.literal(category.name), x, cy, selected ? 0xFFFFE8B8 : 0xFFD7C4A5);
             addClickRegion(x - 4, cy - 4, w + 8, 19, "category", category.id);
             cy += 23;
-            if (cy > y + PAGE_H - 72) break;
         }
+        if (pageCount > 1) {
+            int pagerY = y + CATEGORY_ROWS * 23 + 3;
+            if (categoryListPage > 0) {
+                drawCenteredD(graphics, Component.literal("<"), x + 8, pagerY + 3, 0xFFFFE8B8);
+                addClickRegion(x - 4, pagerY, 26, 18, "category_list", "prev");
+            }
+            drawCenteredD(graphics, Component.literal((categoryListPage + 1) + " / " + pageCount),
+                x + w / 2, pagerY + 3, 0xFFD7C4A5);
+            if (categoryListPage + 1 < pageCount) {
+                drawCenteredD(graphics, Component.literal(">"), x + w - 8, pagerY + 3, 0xFFFFE8B8);
+                addClickRegion(x + w - 22, pagerY, 26, 18, "category_list", "next");
+            }
+        }
+    }
+
+    private void changeCategoryListPage(int delta) {
+        int pageCount = Math.max(1, (CATEGORIES.length + CATEGORY_ROWS - 1) / CATEGORY_ROWS);
+        categoryListPage = Math.max(0, Math.min(categoryListPage + delta, pageCount - 1));
     }
 
     private void renderElement(GuiGraphics graphics, VisualElement element, int pageX, int pageY) {
@@ -291,13 +313,7 @@ public class ${name}BookScreen extends Screen {
     }
 
     private void renderImage(GuiGraphics graphics, String name, int x, int y, int w, int h) {
-        if (name == null || name.isBlank()) return;
-        ResourceLocation texture = ResourceLocation.fromNamespaceAndPath("${modid}", "textures/screens/" + name + ".png");
-        int rx = sx(x);
-        int ry = sy(y);
-        int rw = Math.max(1, sx(x + w) - rx);
-        int rh = Math.max(1, sy(y + h) - ry);
-        graphics.blit(texture, rx, ry, 0, 0, rw, rh, rw, rh);
+        renderResourceImage(graphics, name, "SCREEN", x, y, w, h);
     }
 
     private String currentFrame(VisualElement element) {
@@ -307,21 +323,41 @@ public class ${name}BookScreen extends Screen {
     }
 
 
-    private void renderResourceImage(GuiGraphics graphics, String name, String typeName, int x, int y, int w, int h) {
-        if (name == null || name.isBlank()) return;
+    private static String textureResource(String name, String typeName) {
+        if (name == null || name.isBlank()) return null;
         String namespace = "${modid}";
-        String pathName = name;
-        int colon = name.indexOf(':');
-        if (colon > 0) {
-            namespace = name.substring(0, colon);
-            pathName = name.substring(colon + 1);
+        String pathName = name.trim().replace('\\', '/');
+        int colon = pathName.indexOf(':');
+        if (colon >= 0) {
+            namespace = pathName.substring(0, colon);
+            pathName = pathName.substring(colon + 1);
         }
+        if (pathName.isBlank() || pathName.startsWith("/")) return null;
         String folder = switch (typeName == null ? "SCREEN" : typeName) {
             case "ITEM" -> "item";
             case "BLOCK" -> "block";
             default -> "screens";
         };
-        ResourceLocation texture = ResourceLocation.fromNamespaceAndPath(namespace, "textures/" + folder + "/" + pathName + ".png");
+        if (!pathName.startsWith("textures/")) {
+            if (pathName.startsWith("item/") || pathName.startsWith("block/") || pathName.startsWith("screens/")) {
+                pathName = "textures/" + pathName;
+            } else {
+                pathName = "textures/" + folder + "/" + pathName;
+            }
+        }
+        if (!pathName.endsWith(".png")) pathName += ".png";
+        if (!namespace.matches("[a-z0-9_.-]+") || !pathName.matches("[a-z0-9/._-]+")) return null;
+        for (String segment : pathName.split("/", -1)) {
+            if (segment.isEmpty() || ".".equals(segment) || "..".equals(segment)) return null;
+        }
+        return namespace + ":" + pathName;
+    }
+
+    private void renderResourceImage(GuiGraphics graphics, String name, String typeName, int x, int y, int w, int h) {
+        String resource = textureResource(name, typeName);
+        if (resource == null) return;
+        int colon = resource.indexOf(':');
+        ResourceLocation texture = ResourceLocation.fromNamespaceAndPath(resource.substring(0, colon), resource.substring(colon + 1));
         int rx = sx(x);
         int ry = sy(y);
         int rw = Math.max(1, sx(x + w) - rx);
@@ -564,14 +600,15 @@ public class ${name}BookScreen extends Screen {
         for (RichToken token : tokens) {
             State state = token.state;
             float designScale = Math.max(0.05f, state.size / 9.0f);
-            for (int i = 0; i < token.text.length(); i++) {
-                char ch = token.text.charAt(i);
+            for (int i = 0; i < token.text.length();) {
+                int ch = token.text.codePointAt(i);
+                i += Character.charCount(ch);
                 if (ch == '\r') continue;
                 if (ch == '\n') {
                     result.add(new Glyph("", Component.empty(), 1f, 0, 10, true, null, null));
                     continue;
                 }
-                String raw = String.valueOf(ch);
+                String raw = new String(Character.toChars(ch));
                 Component component = styledComponent(raw, state);
 
                 // crispTextScale() may quantize the requested scale to a whole
@@ -613,7 +650,17 @@ public class ${name}BookScreen extends Screen {
             String tag = matcher.group(2).toLowerCase(Locale.ROOT);
             String arg = matcher.group(3);
             if (closing) {
-                if (!stack.isEmpty()) state = stack.pop().previous;
+                boolean hasMatchingOpening = false;
+                for (StateFrame frame : stack) {
+                    if (frame.tag.equals(tag)) { hasMatchingOpening = true; break; }
+                }
+                if (hasMatchingOpening) {
+                    while (!stack.isEmpty()) {
+                        StateFrame frame = stack.pop();
+                        state = frame.previous;
+                        if (frame.tag.equals(tag)) break;
+                    }
+                }
             } else {
                 stack.push(new StateFrame(tag, state.copy()));
                 switch (tag) {
@@ -660,6 +707,7 @@ public class ${name}BookScreen extends Screen {
         for (int i = 0; i < CATEGORIES.length; i++) {
             if (CATEGORIES[i].id.equals(id)) {
                 categoryIndex = i;
+                categoryListPage = i / CATEGORY_ROWS;
                 pageIndex = 0;
                 return;
             }
@@ -671,6 +719,7 @@ public class ${name}BookScreen extends Screen {
             for (int p = 0; p < CATEGORIES[c].pages.length; p++) {
                 if (CATEGORIES[c].pages[p].id.equals(id)) {
                     categoryIndex = c;
+                    categoryListPage = c / CATEGORY_ROWS;
                     pageIndex = p;
                     return;
                 }
@@ -696,6 +745,7 @@ public class ${name}BookScreen extends Screen {
             if (c < 0) return;
         }
         categoryIndex = c;
+        categoryListPage = c / CATEGORY_ROWS;
         pageIndex = p;
     }
 
@@ -720,6 +770,7 @@ public class ${name}BookScreen extends Screen {
                 if (!region.contains(mouseX, mouseY)) continue;
                 switch (region.type) {
                     case "category" -> selectCategoryById(region.target);
+                    case "category_list" -> changeCategoryListPage("next".equals(region.target) ? 1 : -1);
                     case "nav" -> advancePage("next".equals(region.target) ? 1 : -1);
                     case "page" -> selectPageById(region.target);
                     case "url" -> {
