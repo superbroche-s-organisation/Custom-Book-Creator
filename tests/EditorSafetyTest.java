@@ -4,7 +4,7 @@ import java.nio.file.Path;
 
 public final class EditorSafetyTest {
     public static void main(String[] args) throws Exception {
-        Path guiPath = Path.of("src", "main", "java", "fr", "tom", "mcreator", "custombook", "ui", "modgui",
+        Path guiPath = Path.of("src", "main", "java", "fr", "superbroche", "mcreator", "custombook", "ui", "modgui",
                 "CustomBookGUI.java");
         String source = Files.readString(guiPath, StandardCharsets.UTF_8);
 

@@ -1,6 +1,8 @@
 # Validation — 1.1.2-hotfix
 
-Date: 2026-09-03. This maintenance build is published as source code, not as a GitHub release.
+Validation date: 2026-09-03. Plugin author: **Superbroche**.
+
+Target compatibility: MCreator 2026.2 with the NeoForge 1.21.1 and NeoForge 26.1.2 generators.
 
 ## Result
 
@@ -12,7 +14,7 @@ Date: 2026-09-03. This maintenance build is published as source code, not as a G
 ## Reproduce the automated suite
 
 ```powershell
-.\test.ps1 -MCreatorRoot "D:\MCreator" -GeneratedSourcesDirectory "build\generated-validation"
+.\test.ps1 -MCreatorRoot "C:\Path\To\MCreator" -GeneratedSourcesDirectory "build\generated-validation"
 ```
 
 The script rebuilds the plugin, extracts that ZIP, compiles every Java test in `tests`, and executes each test in a separate JVM. A failed program fails the overall run. The optional directory retains generated source files for external Minecraft/NeoForge compilation.
@@ -21,8 +23,8 @@ The script rebuilds the plugin, extracts that ZIP, compiles every Java test in `
 
 | Test | Verified behavior |
 | --- | --- |
-| `BinaryContractTest` | MCreator's required `getElementFromGUI(): GeneratableElement` bridge exists in the packaged bytecode. |
-| `WorkspaceReloadWithImageTest` | An imported image survives two actual MCreator serialization/reload cycles; null category/page/element recovery does not abort deserialization. |
+| `BinaryContractTest` | MCreator's required `getElementFromGUI(): GeneratableElement` bridge exists in the packaged bytecode; the packaged author, stable plugin ID, and renamed entry point are correct and loadable. |
+| `WorkspaceReloadWithImageTest` | An imported image survives two actual MCreator serialization/reload cycles; null category/page/element recovery does not abort deserialization; saved books retain the stable `custombook` type without persisting the Java namespace. |
 | `TreeDragDropTest` | 251 dynamic assertions execute the real Swing transfer handler: page/category ordering, inter-category moves, stable IDs/content/images, last-page replacement, invalid/stale/foreign targets, button-target repair, and rollback after injected failures. |
 | `EditorSafetyTest` | Listener guards, native save lifecycle, selector recovery, style choices, and media-safety wiring remain present. |
 | `MediaImportSafetyTest` | 36 dynamic assertions cover valid PNG/GIF, false formats, truncated files, dimensions, frame count, and decoded-pixel budget. Also passed separately with a 128 MB Java heap, proving oversized fixtures are rejected before large allocation. |

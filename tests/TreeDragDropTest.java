@@ -1,5 +1,5 @@
-import fr.tom.mcreator.custombook.element.types.CustomBook;
-import fr.tom.mcreator.custombook.ui.modgui.CustomBookGUI;
+import fr.superbroche.mcreator.custombook.element.types.CustomBook;
+import fr.superbroche.mcreator.custombook.ui.modgui.CustomBookGUI;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.datatransfer.DataFlavor;

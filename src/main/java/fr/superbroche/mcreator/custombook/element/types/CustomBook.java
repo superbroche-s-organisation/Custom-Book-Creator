@@ -1,4 +1,4 @@
-package fr.tom.mcreator.custombook.element.types;
+package fr.superbroche.mcreator.custombook.element.types;
 
 import java.awt.Color;
 import java.awt.Graphics2D;

@@ -1,4 +1,4 @@
-import fr.tom.mcreator.custombook.ui.modgui.CustomBookGUI;
+import fr.superbroche.mcreator.custombook.ui.modgui.CustomBookGUI;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import sun.misc.Unsafe;

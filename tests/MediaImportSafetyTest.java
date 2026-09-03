@@ -1,4 +1,4 @@
-import fr.tom.mcreator.custombook.ui.modgui.CustomBookGUI;
+import fr.superbroche.mcreator.custombook.ui.modgui.CustomBookGUI;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;

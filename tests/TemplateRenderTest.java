@@ -1,5 +1,5 @@
 import com.google.gson.JsonParser;
-import fr.tom.mcreator.custombook.element.types.CustomBook;
+import fr.superbroche.mcreator.custombook.element.types.CustomBook;
 import freemarker.ext.beans.BeansWrapperBuilder;
 import freemarker.template.Configuration;
 import freemarker.template.Template;

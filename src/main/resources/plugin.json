@@ -1,7 +1,7 @@
 {
   "id": "custom_book_creator",
   "weight": 1,
-  "javaplugin": "fr.tom.mcreator.custombook.CustomBookPlugin",
+  "javaplugin": "fr.superbroche.mcreator.custombook.CustomBookPlugin",
   "supportedversions": [
     2026002
   ],
@@ -9,6 +9,6 @@
     "name": "Custom Book Creator",
     "version": "1.1.2-hotfix",
     "description": "Create advanced visual books for MCreator 2026.2 with rich text, media, buttons, page-specific navigation, starting books, native item properties, and localization support for every MCreator language.",
-    "author": "Tom"
+    "author": "Superbroche"
   }
 }

@@ -1,4 +1,4 @@
-import fr.tom.mcreator.custombook.element.types.CustomBook;
+import fr.superbroche.mcreator.custombook.element.types.CustomBook;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;

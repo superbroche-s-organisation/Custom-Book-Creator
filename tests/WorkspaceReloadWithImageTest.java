@@ -3,8 +3,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import fr.tom.mcreator.custombook.element.types.CustomBook;
-import fr.tom.mcreator.custombook.registry.PluginElementTypes;
+import fr.superbroche.mcreator.custombook.element.types.CustomBook;
+import fr.superbroche.mcreator.custombook.registry.PluginElementTypes;
 import java.io.File;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -38,6 +38,11 @@ public final class WorkspaceReloadWithImageTest {
 
             ModElementManager manager = workspace.getModElementManager();
             String savedJson = manager.generatableElementToJSON(original);
+            JsonObject envelope = JsonParser.parseString(savedJson).getAsJsonObject();
+            if (!"custombook".equals(envelope.get("_type").getAsString())
+                    || savedJson.contains(CustomBook.class.getPackageName())) {
+                throw new AssertionError("Saved books must use the stable registry ID, not the Java namespace");
+            }
             if (!savedJson.contains("restart_test_image")) {
                 throw new AssertionError("The imported image reference was not serialized");
             }

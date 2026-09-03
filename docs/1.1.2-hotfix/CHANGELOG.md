@@ -1,9 +1,12 @@
 # Custom Book Creator 1.1.2-hotfix
 
-This is a maintenance build for MCreator 2026.2. Its sources are published on GitHub; no GitHub release has been created and existing tags remain unchanged.
+Maintenance update for MCreator 2026.2, supporting the NeoForge 1.21.1 and NeoForge 26.1.2 generators.
+
+Author: **Superbroche**. See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the detailed release overview.
 
 ## Main fixes
 
+- Standardized author attribution and internal Java namespace to Superbroche, while retaining the stable plugin and saved-book identifiers.
 - Safer drag-and-drop with rejection of invalid destinations and rollback on failure.
 - Internal page buttons remain consistent after moving or deleting pages/categories.
 - Image selections are no longer overwritten while the inspector refreshes its fields.
@@ -16,7 +19,7 @@ This is a maintenance build for MCreator 2026.2. Its sources are published on Gi
 
 ## Validation
 
-Run `test.ps1` to rebuild the plugin and execute all regression programs. The generated item, screen, client events, and starting-book handlers are also compiled against the real APIs for both supported NeoForge versions. See `VALIDATION.md` for exact coverage and limitations.
+All **14/14 automated test programs passed** against the freshly packaged plugin. The generated item, screen, client events, and starting-book handlers also compiled against the real APIs for both supported NeoForge versions. Run `test.ps1` to rebuild the plugin and execute the regression programs. See [VALIDATION.md](VALIDATION.md) for exact coverage and limitations; a full `runClient` session was not completed in this validation.
 
 ## Installation
 

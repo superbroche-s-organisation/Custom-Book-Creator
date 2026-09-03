@@ -23,7 +23,7 @@ public final class V11FeaturesTest {
     }
 
     private static void verifyEditorModelAndDragDrop() throws Exception {
-        Path javaRoot = Path.of("src", "main", "java", "fr", "tom", "mcreator", "custombook");
+        Path javaRoot = Path.of("src", "main", "java", "fr", "superbroche", "mcreator", "custombook");
         String model = read(javaRoot.resolve(Path.of("element", "types", "CustomBook.java")));
         String gui = read(javaRoot.resolve(Path.of("ui", "modgui", "CustomBookGUI.java")));
 

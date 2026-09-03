@@ -1,7 +1,7 @@
-package fr.tom.mcreator.custombook.registry;
+package fr.superbroche.mcreator.custombook.registry;
 
-import fr.tom.mcreator.custombook.element.types.CustomBook;
-import fr.tom.mcreator.custombook.ui.modgui.CustomBookGUI;
+import fr.superbroche.mcreator.custombook.element.types.CustomBook;
+import fr.superbroche.mcreator.custombook.ui.modgui.CustomBookGUI;
 import net.mcreator.element.ModElementType;
 import net.mcreator.element.ModElementTypeLoader;
 import net.mcreator.generator.GeneratorFlavor;

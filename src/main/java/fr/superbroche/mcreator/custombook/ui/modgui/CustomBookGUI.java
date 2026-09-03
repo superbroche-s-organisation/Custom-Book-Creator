@@ -1,6 +1,6 @@
-package fr.tom.mcreator.custombook.ui.modgui;
+package fr.superbroche.mcreator.custombook.ui.modgui;
 
-import fr.tom.mcreator.custombook.element.types.CustomBook;
+import fr.superbroche.mcreator.custombook.element.types.CustomBook;
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.BorderLayout;

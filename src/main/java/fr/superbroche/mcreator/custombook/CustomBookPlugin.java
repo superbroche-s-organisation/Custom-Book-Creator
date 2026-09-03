@@ -1,6 +1,6 @@
-package fr.tom.mcreator.custombook;
+package fr.superbroche.mcreator.custombook;
 
-import fr.tom.mcreator.custombook.registry.PluginElementTypes;
+import fr.superbroche.mcreator.custombook.registry.PluginElementTypes;
 import net.mcreator.plugin.JavaPlugin;
 import net.mcreator.plugin.Plugin;
 import net.mcreator.plugin.events.PreGeneratorsLoadingEvent;

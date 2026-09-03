@@ -2,6 +2,10 @@
 
 Source code for **Custom Book Creator**, built for **MCreator 2026.2**.
 
+Author: **Superbroche**.
+
+Version **1.1.2-hotfix** improves workspace reload safety, drag-and-drop, internal navigation, rich text, and media imports. See the [release notes](docs/1.1.2-hotfix/RELEASE_NOTES.md) for the complete overview and installation instructions.
+
 ## Compatibility
 
 - MCreator 2026.2
@@ -14,7 +18,7 @@ Source code for **Custom Book Creator**, built for **MCreator 2026.2**.
 Run from PowerShell:
 
 ```powershell
-.\build.ps1 -MCreatorRoot "D:\MCreator"
+.\build.ps1 -MCreatorRoot "C:\Path\To\MCreator"
 ```
 
 The script compiles against the selected MCreator installation and creates the installable ZIP in `dist`.
@@ -22,10 +26,12 @@ The script compiles against the selected MCreator installation and creates the i
 ## Test
 
 ```powershell
-.\test.ps1 -MCreatorRoot "D:\MCreator" -GeneratedSourcesDirectory "build\generated-validation"
+.\test.ps1 -MCreatorRoot "C:\Path\To\MCreator" -GeneratedSourcesDirectory "build\generated-validation"
 ```
 
 This rebuilds the plugin and runs every Java regression test in `tests`. The optional output directory retains representative generated sources for compilation against Minecraft/NeoForge. See the [validation report](docs/1.1.2-hotfix/VALIDATION.md) for the tested scope and remaining manual checks, and the [hotfix changelog](docs/1.1.2-hotfix/CHANGELOG.md) for the fixes.
+
+For this build, **14/14 automated test programs passed**, and representative generated Java compiled against both supported NeoForge APIs. A full `runClient` session and in-game visual/multiplayer checks were not completed as part of this validation.
 
 ## Install this hotfix
 
