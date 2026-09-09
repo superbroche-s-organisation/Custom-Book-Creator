@@ -123,7 +123,7 @@ try {
             }
             # Each test gets a separate JVM, so static MCreator registrations and
             # translation fixtures cannot leak between tests.
-            & $java -ea "-Djava.awt.headless=true" -cp $runtimeClassPath $testClass.Name @testArguments
+            & $java -ea "-Djava.awt.headless=true" "-Dlog_directory=$temporaryRoot" "-Dcustombook.pluginRoot=$pluginClasses" -cp $runtimeClassPath $testClass.Name @testArguments
             if ($LASTEXITCODE -ne 0) {
                 $failedTests.Add($testClass.Name)
                 Write-Host ("FAILED: {0} (exit {1})" -f $testClass.Name, $LASTEXITCODE) -ForegroundColor Red

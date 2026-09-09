@@ -16,14 +16,17 @@ import java.util.Map;
 public final class TemplateRenderTest {
     public static void main(String[] args) throws Exception {
         Path outputRoot = args.length == 0 ? null : Path.of(args[0]);
-        for (String generator : List.of("neoforge-1.21.1", "neoforge-26.1.2")) {
-            verifyGenerator(generator, outputRoot);
+        Path resources = Path.of(System.getProperty("custombook.pluginRoot", "src/main/resources"));
+        try (var directories = Files.list(resources)) {
+            for (Path directory : directories.filter(p -> Files.isRegularFile(p.resolve("custombook.definition.yaml"))).sorted().toList()) {
+                verifyGenerator(directory.getFileName().toString(), outputRoot);
+            }
         }
         System.out.println("TEMPLATE_RENDER_OK");
     }
 
     private static void verifyGenerator(String generator, Path outputRoot) throws Exception {
-        Path templateRoot = Path.of("src", "main", "resources", generator, "templates", "custombook");
+        Path templateRoot = Path.of(System.getProperty("custombook.pluginRoot", "src/main/resources"), generator, "templates", "custombook");
         Configuration configuration = new Configuration(Configuration.VERSION_2_3_34);
         configuration.setDirectoryForTemplateLoading(templateRoot.toFile());
         configuration.setDefaultEncoding("UTF-8");
@@ -42,7 +45,7 @@ public final class TemplateRenderTest {
         requireResolved(generator, item);
         requireResolved(generator, screen);
         requireResolved(generator, clientEvents);
-        require(item.contains("Rarity.EPIC") && item.contains("isFoil") && item.contains("isPiglinCurrency")
+        require(item.contains("Rarity.EPIC") && item.contains("isFoil") && (generator.startsWith("fabric-") || item.contains("isPiglinCurrency"))
                         && item.contains("isCorrectToolForDrops"),
                 generator + ": optional item features did not render");
         require(screen.contains("case \"TEXT\"") && screen.contains("case \"IMAGE\"")
@@ -51,12 +54,19 @@ public final class TemplateRenderTest {
                 generator + ": not every visual element type rendered");
         require(screen.contains("String.join(\"\", new String[] {"),
                 generator + ": long text is not split into safe Java constants");
+        require(screen.contains("private record Title(") && screen.contains("renderTitle(graphics, page.titleDesign")
+                        && screen.contains("title.rotation") && screen.contains("\"#123456\"")
+                        && screen.contains("[b]A styled title[/b]"),
+                generator + ": title design / formatted content did not render");
+        require(!screen.contains("translateBookText") && !screen.contains("I18n") && !screen.contains("TRANSLATION_PATTERN"),
+                generator + ": removed book localization remains in generated code");
 
         Map<String, Object> startingModel = baseModel();
         startingModel.put("data", new StartingData(new StartingModElement("AUDIT_BOOK")));
         String startingEvents = render(configuration, "starting_book_events.java.ftl", startingModel);
         requireResolved(generator, startingEvents);
-        require(startingEvents.contains("AuditModItems.AUDIT_BOOK.get()"),
+        require(generator.startsWith("fabric-") ? startingEvents.contains("new ItemStack(item)")
+                        : startingEvents.contains("AuditModItems.AUDIT_BOOK.get()"),
                 generator + ": starting-book item reference is wrong");
 
         String normalModel = render(configuration, "item_model.json.ftl", model);
@@ -68,7 +78,8 @@ public final class TemplateRenderTest {
         JsonParser.parseString(customObjModel);
         require(customJsonModel.contains("\"particle\": \"minecraft:item/clock\""),
                 generator + ": custom JSON model has no safe particle fallback");
-        require(customObjModel.contains("\"particle\": \"minecraft:item/clock\""),
+        require(generator.startsWith("fabric-") ? customObjModel.contains("minecraft:item/clock")
+                        : customObjModel.contains("\"particle\": \"minecraft:item/clock\""),
                 generator + ": custom OBJ model has no safe particle fallback");
         book.customModelName = null;
         book.renderType = 1;
@@ -109,6 +120,13 @@ public final class TemplateRenderTest {
 
         CustomBook.BookCategory first = new CustomBook.BookCategory("Welcome & basics");
         CustomBook.BookPage firstPage = new CustomBook.BookPage("First \\\"page\\\"", "");
+        firstPage.titleDesign.content = "[size=18][b]A styled title[/b][/size]";
+        firstPage.titleDesign.position = "LEFT";
+        firstPage.titleDesign.offset = 15;
+        firstPage.titleDesign.height = 32;
+        firstPage.titleDesign.barColor = "#123456";
+        firstPage.titleDesign.barLength = 200;
+        firstPage.titleDesign.barThickness = 3;
         firstPage.elements.clear();
         firstPage.elements.add(CustomBook.BookElement.text(
                 "[b]Bold[/b] [i]italic[/i] [u]underlined[/u] [s]struck[/s] é漢字 📖\\n[url=https://example.com]Link[/url]"));

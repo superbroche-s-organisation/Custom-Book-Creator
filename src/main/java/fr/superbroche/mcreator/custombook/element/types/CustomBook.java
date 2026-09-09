@@ -407,6 +407,7 @@ IItemWithTexture {
         public String id = UUID.randomUUID().toString();
         public String title;
         public boolean showTitle;
+        public TitleDesign titleDesign = new TitleDesign();
         public String content;
         public List<BookElement> elements;
 
@@ -427,7 +428,27 @@ IItemWithTexture {
             return this.elements;
         }
 
+        public TitleDesign getTitleDesign() {
+            if (this.titleDesign == null) this.titleDesign = new TitleDesign();
+            this.titleDesign.normalize();
+            return this.titleDesign;
+        }
+
+        public String getTitleContent() {
+            String content = this.getTitleDesign().content;
+            return content.isBlank() ? (this.title == null ? "Page" : this.title) : content;
+        }
+
+        public List<String> getTitleContentChunks() {
+            return BookElement.text(this.getTitleContent()).getContentChunks();
+        }
+
+        public TitleLayout getTitleLayout() {
+            return this.getTitleDesign().layout();
+        }
+
         public void normalizeElements() {
+            this.getTitleDesign();
             if (this.elements == null) {
                 this.elements = new ArrayList<BookElement>();
             }
@@ -462,6 +483,81 @@ IItemWithTexture {
 
         public String toString() {
             return this.title == null ? "Page" : this.title;
+        }
+    }
+
+    /** Page-relative design coordinates shared by the editor and generated Minecraft screen. */
+    public record TitleLayout(int x, int y, int width, int height, int rotation,
+                              int handleX, int handleY, int barX, int barY, int barWidth, int barHeight) {}
+
+    public static class TitleDesign {
+        public String content = "";
+        public String align = "CENTER";
+        public String position = "TOP";
+        public int offset = 0;
+        public int height = 24;
+        public boolean barVisible = true;
+        public String barColor = "#DDCDAA";
+        public int barLength = 228;
+        public int barThickness = 1;
+
+        public void normalize() {
+            this.content = CustomBook.limit(this.content == null ? "" : this.content, MAX_TEXT_LENGTH);
+            if (!"LEFT".equals(this.align) && !"CENTER".equals(this.align) && !"RIGHT".equals(this.align)) this.align = "CENTER";
+            if (!"TOP".equals(this.position) && !"BOTTOM".equals(this.position)
+                    && !"LEFT".equals(this.position) && !"RIGHT".equals(this.position)) this.position = "TOP";
+            this.height = Math.max(10, Math.min(96, this.height));
+            boolean vertical = "LEFT".equals(this.position) || "RIGHT".equals(this.position);
+            this.offset = Math.max(0, Math.min((vertical ? 256 : 320) - 20 - this.height, this.offset));
+            if (!BookElement.validHex(this.barColor)) this.barColor = "#DDCDAA";
+            this.barLength = Math.max(1, Math.min(vertical ? 292 : 228, this.barLength));
+            this.barThickness = Math.max(1, Math.min(this.height, this.barThickness));
+        }
+
+        public TitleLayout layout() {
+            this.normalize();
+            int x = 14, y = 10 + this.offset, width = 228, boxHeight = this.height, rotation = 0;
+            switch (this.position) {
+                case "BOTTOM" -> y = 310 - this.offset - this.height;
+                case "LEFT" -> { x = 10 + this.offset; y = 14; width = this.height; boxHeight = 292; rotation = -90; }
+                case "RIGHT" -> { x = 246 - this.offset - this.height; y = 14; width = this.height; boxHeight = 292; rotation = 90; }
+                default -> { }
+            }
+            boolean vertical = rotation != 0;
+            int barX = vertical ? (rotation < 0 ? x + width - this.barThickness : x) : x + (width - this.barLength) / 2;
+            int barY = vertical ? y + (boxHeight - this.barLength) / 2 : ("BOTTOM".equals(this.position) ? y : y + boxHeight - this.barThickness);
+            int barWidth = vertical ? this.barThickness : this.barLength;
+            int barHeight = vertical ? this.barLength : this.barThickness;
+            return new TitleLayout(x, y, width, boxHeight, rotation, barX + barWidth / 2, barY + barHeight / 2,
+                    barX, barY, barWidth, barHeight);
+        }
+
+        public int offsetForHandle(int x, int y, int gridStep) {
+            this.normalize();
+            boolean vertical = "LEFT".equals(this.position) || "RIGHT".equals(this.position);
+            int coordinate = vertical ? x : y;
+            if (gridStep > 0) coordinate = (int) Math.round(coordinate / (double) gridStep) * gridStep;
+            int offset = switch (this.position) {
+                case "BOTTOM" -> 310 - this.height + this.barThickness / 2 - coordinate;
+                case "RIGHT" -> 246 - this.height + this.barThickness / 2 - coordinate;
+                default -> coordinate - 10 - this.height + this.barThickness - this.barThickness / 2;
+            };
+            return Math.max(0, Math.min((vertical ? 256 : 320) - 20 - this.height, offset));
+        }
+
+        public TitleDesign copy() {
+            TitleDesign copy = new TitleDesign();
+            copy.content = this.content;
+            copy.align = this.align;
+            copy.position = this.position;
+            copy.offset = this.offset;
+            copy.height = this.height;
+            copy.barVisible = this.barVisible;
+            copy.barColor = this.barColor;
+            copy.barLength = this.barLength;
+            copy.barThickness = this.barThickness;
+            copy.normalize();
+            return copy;
         }
     }
 

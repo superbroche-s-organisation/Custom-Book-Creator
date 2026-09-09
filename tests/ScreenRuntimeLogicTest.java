@@ -8,27 +8,33 @@ import javax.tools.ToolProvider;
 /** Executes the actual dependency-free screen logic extracted from both generator templates. */
 public final class ScreenRuntimeLogicTest {
     public static void main(String[] args) throws Exception {
-        for (String generator : new String[] { "neoforge-1.21.1", "neoforge-26.1.2" }) {
-            Path template = Path.of("src", "main", "resources", generator, "templates", "custombook", "screen.java.ftl");
-            String source = Files.readString(template, StandardCharsets.UTF_8);
-            verify(source, generator);
-            System.out.println("SCREEN_RUNTIME_LOGIC_OK " + generator);
+        Path resources = Path.of(System.getProperty("custombook.pluginRoot", "src/main/resources"));
+        try (var paths = Files.list(resources)) {
+            for (Path path : paths.filter(p -> Files.isRegularFile(p.resolve("custombook.definition.yaml"))).sorted().toList()) {
+                String generator = path.getFileName().toString();
+                Path template = path.resolve("templates/custombook/screen.java.ftl");
+                String source = Files.readString(template, StandardCharsets.UTF_8);
+                verify(source, generator);
+                System.out.println("SCREEN_RUNTIME_LOGIC_OK " + generator);
+            }
         }
     }
 
     private static void verify(String source, String generator) throws Exception {
         String pattern = source.lines().filter(line -> line.contains("private static final Pattern TAG_PATTERN"))
                 .findFirst().orElseThrow();
-        String graphicsType = generator.equals("neoforge-1.21.1") ? "GuiGraphics" : "GuiGraphicsExtractor";
-        String categories = between(source, "    private void renderCategories(", "    private void renderElement(")
+        String graphicsType = generator.equals("neoforge-26.1.2") ? "GuiGraphicsExtractor" : "GuiGraphics";
+        String categories = between(source, "    private void renderCategories(", "    private void renderTitle(")
                 .replace(graphicsType, "Graphics");
         String texture = between(source, "    private static String textureResource(", "    private void renderResourceImage(")
                 .replace("${modid}", "audit_mod");
         String navigationCheck = between(source, "    private boolean canAdvance(", "    private void renderRichTextBlock(");
         String glyphs = between(source, "    private List<Glyph> buildGlyphs(", "    private Component styledComponent(");
+        String wrapping = between(source, "    private List<Line> wrapGlyphs(", "    private List<Glyph> buildGlyphs(");
         String parser = between(source, "    private static List<RichToken> parse(", "    private Page currentPage(");
         String navigation = between(source, "    private Page currentPage(", "    /**\n     * External links");
         String records = between(source, "    private record Category(", "    private static final class Line");
+        String lines = between(source, "    private static final class Line", "    private static final class State");
         String state = source.substring(source.indexOf("    private static final class State"), source.lastIndexOf('}'));
 
         String fixture = """
@@ -56,7 +62,7 @@ public final class ScreenRuntimeLogicTest {
                     private Component styledComponent(String raw, State state) { return Component.literal(raw); }
                     private int glyphScreenAdvance(Component text, float scale) { return 6; }
                     private int glyphScreenHeight(float scale) { return 9; }
-                """ + pattern + categories + texture + navigationCheck + glyphs + parser + navigation + records + state + """
+                """ + pattern + categories + texture + navigationCheck + glyphs + wrapping + parser + navigation + records + lines + state + """
                     private static void check(boolean condition, String message) {
                         if (!condition) throw new AssertionError(message);
                     }
@@ -65,7 +71,7 @@ public final class ScreenRuntimeLogicTest {
                     }
                     private static Category category(String id, String... pages) {
                         return new Category(id, id, Arrays.stream(pages)
-                            .map(page -> new Page(page, page, true, new VisualElement[0])).toArray(Page[]::new));
+                            .map(page -> new Page(page, page, true, null, new VisualElement[0])).toArray(Page[]::new));
                     }
                     private boolean clickable(String type, String target) {
                         return clickRegions.stream().anyMatch(region -> region.type.equals(type) && region.target.equals(target));
@@ -102,6 +108,12 @@ public final class ScreenRuntimeLogicTest {
                             "Link scope restoration failed");
 
                         ScreenLogicFixture screen = new ScreenLogicFixture();
+                        check(screen.buildGlyphs("[tr=book.test.title]").stream().map(glyph -> glyph.raw)
+                            .reduce("", String::concat).equals("[tr=book.test.title]"), "Removed localization must remain literal");
+                        List<Line> mixed = screen.wrapGlyphs(screen.buildGlyphs("[align=CENTER]Heading[/align]" + (char) 10 + "Body"), 300);
+                        check("CENTER".equals(mixed.get(0).align) && mixed.get(1).align == null, "Paragraph alignment leaked");
+                        List<Line> wrapped = screen.wrapGlyphs(screen.buildGlyphs("[align=RIGHT]A long paragraph that wraps[/align]"), 30);
+                        check(wrapped.size() > 1 && wrapped.stream().allMatch(line -> "RIGHT".equals(line.align)), "Wrapped lines lost paragraph alignment");
                         String rocket = new String(Character.toChars(0x1F680));
                         List<Glyph> unicode = screen.buildGlyphs("A" + rocket + "B" + (char) 13 + (char) 10 + "C");
                         check(unicode.size() == 5, "Supplementary character split into surrogate glyphs");

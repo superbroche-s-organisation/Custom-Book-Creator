@@ -34,13 +34,19 @@ public class ${name}BookScreen extends Screen {
     private static final int DEFAULT_SIZE = 12;
     private static final int CATEGORY_ROWS = 11;
     private static final boolean HIDE_NEXT_ARROW_AT_CATEGORY_END = ${data.hideNextArrowAtCategoryEnd?c};
-    private static final Pattern TAG_PATTERN = Pattern.compile("\\[(/?)(b|i|u|s|obf|size|color|url|page)(?:=([^\\]]+))?\\]", Pattern.CASE_INSENSITIVE);
+    private static final Pattern TAG_PATTERN = Pattern.compile("\\[(/?)(b|i|u|s|obf|size|color|url|page|align)(?:=([^\\]]+))?\\]", Pattern.CASE_INSENSITIVE);
 
     private static final Category[] CATEGORIES = new Category[] {
         <#list data.getBookCategories() as category>
         new Category("${category.id?j_string}", "${category.name?j_string}", new Page[] {
             <#list category.pages as page>
-            new Page("${page.id?j_string}", "${page.title?j_string}", ${page.showTitle?c}, new VisualElement[] {
+            <#assign title = page.getTitleDesign()>
+            <#assign layout = page.getTitleLayout()>
+            new Page("${page.id?j_string}", "${page.title?j_string}", ${page.showTitle?c},
+                new Title(String.join("", new String[] {<#list page.getTitleContentChunks() as chunk>"${chunk?j_string}"<#sep>, </#sep></#list>}),
+                    "${title.align?j_string}", ${layout.x()}, ${layout.y()}, ${layout.width()}, ${layout.height()}, ${layout.rotation()},
+                    ${title.barVisible?c}, "${title.barColor?j_string}", ${layout.barX()}, ${layout.barY()}, ${layout.barWidth()}, ${layout.barHeight()}),
+                new VisualElement[] {
                 <#list page.getBookElements() as element>
                 new VisualElement(
                     "${element.type?j_string}", ${element.x}, ${element.y}, ${element.width}, ${element.height},
@@ -100,10 +106,7 @@ public class ${name}BookScreen extends Screen {
             return;
         }
 
-        if (page.showTitle) {
-            drawCenteredD(graphics, Component.literal(page.title), pageX + PAGE_W / 2, pageY + 17, 0xFF38291E);
-            fillD(graphics, pageX + 14, pageY + 33, pageX + PAGE_W - 14, pageY + 34, 0xFFDDCDAA);
-        }
+        if (page.showTitle) renderTitle(graphics, page.titleDesign, pageX, pageY);
 
         for (VisualElement element : page.elements) renderElement(graphics, element, pageX, pageY);
         renderNavigation(graphics, pageX, pageY);
@@ -208,6 +211,19 @@ public class ${name}BookScreen extends Screen {
     private void changeCategoryListPage(int delta) {
         int pageCount = Math.max(1, (CATEGORIES.length + CATEGORY_ROWS - 1) / CATEGORY_ROWS);
         categoryListPage = Math.max(0, Math.min(categoryListPage + delta, pageCount - 1));
+    }
+
+    private void renderTitle(GuiGraphicsExtractor graphics, Title title, int pageX, int pageY) {
+        int x = pageX + title.x;
+        int y = pageY + title.y;
+        enableDesignScissor(graphics, x, y, title.width, title.height);
+        boolean rotated = title.rotation != 0;
+        renderRichTextBlock(graphics, title.content, x, y, rotated ? title.height : title.width,
+                rotated ? title.width : title.height, title.align, title.rotation);
+        graphics.disableScissor();
+        if (title.barVisible) fillD(graphics, pageX + title.barX, pageY + title.barY,
+                pageX + title.barX + title.barWidth, pageY + title.barY + title.barHeight,
+                parseHexColor(title.barColor, 0xFFDDCDAA));
     }
 
     private void renderElement(GuiGraphicsExtractor graphics, VisualElement element, int pageX, int pageY) {
@@ -479,6 +495,10 @@ public class ${name}BookScreen extends Screen {
     }
 
     private void renderRichTextBlock(GuiGraphicsExtractor graphics, String markup, int x, int y, int width, int height, String align) {
+        renderRichTextBlock(graphics, markup, x, y, width, height, align, 0);
+    }
+
+    private void renderRichTextBlock(GuiGraphicsExtractor graphics, String markup, int x, int y, int width, int height, String align, int rotation) {
         // Wrapping uses logical book coordinates, while glyph placement uses a
         // screen-pixel pen. This avoids cumulative rounding when uiScale < 1:
         // two neighboring glyphs can never collapse onto the same GUI pixels.
@@ -489,17 +509,26 @@ public class ${name}BookScreen extends Screen {
         for (Line current : lines) {
             if (cy >= y + height) break;
             int offset = 0;
-            if ("CENTER".equals(align)) offset = Math.max(0, (width - current.width) / 2);
-            else if ("RIGHT".equals(align)) offset = Math.max(0, width - current.width);
+            String lineAlignment = current.align == null ? align : current.align;
+            if ("CENTER".equals(lineAlignment)) offset = Math.max(0, (width - current.width) / 2);
+            else if ("RIGHT".equals(lineAlignment)) offset = Math.max(0, width - current.width);
 
             int screenCx = sx(x + offset);
             int screenCy = sy(cy);
+            if (rotation < 0) {
+                screenCx = sx(x + cy - y);
+                screenCy = sy(y + width - offset);
+            } else if (rotation > 0) {
+                screenCx = sx(x + height - (cy - y));
+                screenCy = sy(y + offset);
+            }
             for (Glyph glyph : current.glyphs) {
                 if (cy + glyph.height > y + height) break;
                 float screenScale = crispTextScale(glyph.scale * uiScale);
                 Matrix3x2fStack pose = graphics.pose();
                 pose.pushMatrix();
                 pose.translate(screenCx, screenCy);
+                if (rotation != 0) pose.rotate((float) Math.toRadians(rotation));
                 pose.scale(screenScale, screenScale);
                 graphics.text(font, glyph.component, 0, 0, 0xFF38291E, false);
                 pose.popMatrix();
@@ -507,9 +536,13 @@ public class ${name}BookScreen extends Screen {
                 int screenAdvance = glyphScreenAdvance(glyph.component, glyph.scale);
                 int screenHeight = glyphScreenHeight(glyph.scale);
                 if (glyph.actionType != null && !glyph.raw.isBlank()) {
-                    addScreenClickRegion(screenCx, screenCy, screenAdvance, screenHeight, glyph.actionType, glyph.actionTarget);
+                    if (rotation < 0) addScreenClickRegion(screenCx, screenCy - screenAdvance, screenHeight, screenAdvance, glyph.actionType, glyph.actionTarget);
+                    else if (rotation > 0) addScreenClickRegion(screenCx - screenHeight, screenCy, screenHeight, screenAdvance, glyph.actionType, glyph.actionTarget);
+                    else addScreenClickRegion(screenCx, screenCy, screenAdvance, screenHeight, glyph.actionType, glyph.actionTarget);
                 }
-                screenCx += screenAdvance;
+                if (rotation < 0) screenCy -= screenAdvance;
+                else if (rotation > 0) screenCy += screenAdvance;
+                else screenCx += screenAdvance;
             }
             cy += Math.max(10, current.height);
         }
@@ -532,12 +565,18 @@ public class ${name}BookScreen extends Screen {
     private List<Line> wrapGlyphs(List<Glyph> glyphs, int maxWidth) {
         List<Line> lines = new ArrayList<>();
         Line current = new Line();
+        String paragraphAlign = null;
+        boolean paragraphStart = true;
         int i = 0;
         while (i < glyphs.size()) {
             Glyph glyph = glyphs.get(i);
+            if (paragraphStart && !glyph.newline) { paragraphAlign = glyph.align; paragraphStart = false; }
             if (glyph.newline) {
+                current.align = paragraphAlign;
                 lines.add(current);
                 current = new Line();
+                paragraphStart = true;
+                paragraphAlign = null;
                 i++;
                 continue;
             }
@@ -545,7 +584,8 @@ public class ${name}BookScreen extends Screen {
                 // Do not carry leading spaces to a freshly wrapped line.
                 if (!current.glyphs.isEmpty()) {
                     if (current.width + glyph.width > maxWidth) {
-                        lines.add(current);
+                        current.align = paragraphAlign;
+                lines.add(current);
                         current = new Line();
                     } else {
                         current.add(glyph);
@@ -569,6 +609,7 @@ public class ${name}BookScreen extends Screen {
                 j++;
             }
             if (!current.glyphs.isEmpty() && current.width + wordWidth > maxWidth) {
+                current.align = paragraphAlign;
                 lines.add(current);
                 current = new Line();
             }
@@ -577,7 +618,8 @@ public class ${name}BookScreen extends Screen {
             } else {
                 for (Glyph part : word) {
                     if (!current.glyphs.isEmpty() && current.width + part.width > maxWidth) {
-                        lines.add(current);
+                        current.align = paragraphAlign;
+                lines.add(current);
                         current = new Line();
                     }
                     current.add(part);
@@ -585,7 +627,8 @@ public class ${name}BookScreen extends Screen {
             }
             i = j;
         }
-        lines.add(current);
+        current.align = paragraphAlign;
+                lines.add(current);
         return lines;
     }
 
@@ -600,7 +643,7 @@ public class ${name}BookScreen extends Screen {
                 i += Character.charCount(ch);
                 if (ch == '\r') continue;
                 if (ch == '\n') {
-                    result.add(new Glyph("", Component.empty(), 1f, 0, 10, true, null, null));
+                    result.add(new Glyph("", Component.empty(), 1f, 0, 10, true, null, null, null));
                     continue;
                 }
                 String raw = new String(Character.toChars(ch));
@@ -615,7 +658,7 @@ public class ${name}BookScreen extends Screen {
                 int screenHeight = glyphScreenHeight(designScale);
                 int gw = Math.max(1, (int) Math.ceil(screenAdvance / Math.max(0.05f, uiScale)));
                 int gh = Math.max(1, (int) Math.ceil(screenHeight / Math.max(0.05f, uiScale)));
-                result.add(new Glyph(raw, component, designScale, gw, gh, false, state.actionType, state.actionTarget));
+                result.add(new Glyph(raw, component, designScale, gw, gh, false, state.actionType, state.actionTarget, state.align));
             }
         }
         return result;
@@ -664,6 +707,7 @@ public class ${name}BookScreen extends Screen {
                     case "u" -> state.underline = true;
                     case "s" -> state.strike = true;
                     case "obf" -> state.obfuscated = true;
+                    case "align" -> state.align = arg != null && List.of("LEFT", "CENTER", "RIGHT").contains(arg.toUpperCase(Locale.ROOT)) ? arg.toUpperCase(Locale.ROOT) : "LEFT";
                     case "size" -> state.size = safeInt(arg, DEFAULT_SIZE, 6, 48);
                     case "color" -> state.color = parseColor(arg);
                     case "url" -> { state.actionType = "url"; state.actionTarget = arg == null ? "" : arg; }
@@ -783,7 +827,9 @@ public class ${name}BookScreen extends Screen {
     }
 
     private record Category(String id, String name, Page[] pages) {}
-    private record Page(String id, String title, boolean showTitle, VisualElement[] elements) {}
+    private record Page(String id, String title, boolean showTitle, Title titleDesign, VisualElement[] elements) {}
+    private record Title(String content, String align, int x, int y, int width, int height, int rotation,
+                         boolean barVisible, String barColor, int barX, int barY, int barWidth, int barHeight) {}
     private record VisualElement(String type, int x, int y, int width, int height, String content, String align,
                                  String mediaName, String[] frames, int frameDelay, String label, String targetCategoryId, String targetPageId,
                                  String buttonStyle, String buttonBackgroundColor, String buttonBorderColor, String buttonTextColor,
@@ -791,8 +837,8 @@ public class ${name}BookScreen extends Screen {
     private record StateFrame(String tag, State previous) {}
     private record RichToken(String text, State state) {}
     private record Glyph(String raw, Component component, float scale, int width, int height, boolean newline,
-                         String actionType, String actionTarget) {
-        static Glyph newLineGlyph() { return new Glyph("", Component.empty(), 1f, 0, 10, true, null, null); }
+                         String actionType, String actionTarget, String align) {
+        static Glyph newLineGlyph() { return new Glyph("", Component.empty(), 1f, 0, 10, true, null, null, null); }
     }
     private record ClickRegion(int x, int y, int width, int height, String type, String target) {
         boolean contains(double mx, double my) { return mx >= x && mx < x + width && my >= y && my < y + height; }
@@ -802,7 +848,9 @@ public class ${name}BookScreen extends Screen {
         final List<Glyph> glyphs = new ArrayList<>();
         int width;
         int height = 0;
+        String align;
         void add(Glyph glyph) {
+            if (glyphs.isEmpty()) align = glyph.align;
             glyphs.add(glyph);
             width += glyph.width;
             height = Math.max(height, glyph.height);
@@ -819,6 +867,7 @@ public class ${name}BookScreen extends Screen {
         Integer color;
         String actionType;
         String actionTarget;
+        String align;
         State copy() {
             State copy = new State();
             copy.bold = bold;
@@ -830,6 +879,7 @@ public class ${name}BookScreen extends Screen {
             copy.color = color;
             copy.actionType = actionType;
             copy.actionTarget = actionTarget;
+            copy.align = align;
             return copy;
         }
     }

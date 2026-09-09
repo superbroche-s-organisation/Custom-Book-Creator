@@ -63,6 +63,7 @@ try {
     }
 
     Copy-Item -Path (Join-Path $projectRoot "src\main\resources\*") -Destination $stagingDir -Recurse -Force
+    & (Join-Path $projectRoot "prepare-compatibility.ps1") -ResourcesRoot $stagingDir
     Copy-Item -Path (Join-Path $classesDir "*") -Destination $stagingDir -Recurse -Force
 
     $distDir = Join-Path $projectRoot "dist"

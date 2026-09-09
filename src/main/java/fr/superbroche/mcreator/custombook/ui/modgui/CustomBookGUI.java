@@ -1,6 +1,8 @@
 package fr.superbroche.mcreator.custombook.ui.modgui;
 
 import fr.superbroche.mcreator.custombook.element.types.CustomBook;
+import fr.superbroche.mcreator.custombook.ui.RichTextTools;
+import fr.superbroche.mcreator.custombook.ui.VisualRichTextEditor;
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.BorderLayout;
@@ -124,7 +126,8 @@ extends ModElementGUI<CustomBook> {
     private final JTextField displayName = new JTextField("Custom Book", 32);
     private final JTextField bookTitle = new JTextField("Custom Book", 32);
     private final JTextField author = new JTextField("Unknown", 32);
-    private final JSpinner generation = new JSpinner(new SpinnerNumberModel(0, 0, 3, 1));
+    private final JComboBox<String> generation = new JComboBox<>(new String[] {
+            tr("generation.original"), tr("generation.copy_original"), tr("generation.copy_copy"), tr("generation.tattered") });
     private final JComboBox<String> rarity = new JComboBox<String>(new String[]{"COMMON", "UNCOMMON", "RARE", "EPIC"});
     private final JSpinner stackSize = new JSpinner(new SpinnerNumberModel(1, 1, 64, 1));
     private final JSpinner enchantability = new JSpinner(new SpinnerNumberModel(0, 0, 128000, 1));
@@ -143,7 +146,18 @@ extends ModElementGUI<CustomBook> {
     private final JTree bookTree = new JTree(this.treeModel);
     private final JTextField pageTitle = new JTextField();
     private final JCheckBox pageTitleVisible = new JCheckBox(CustomBookGUI.tr("option.show_title"), true);
-    private final JTextPane textEditor = new JTextPane();
+    private final VisualRichTextEditor textEditor = new VisualRichTextEditor();
+    private final JButton editPageTitle = new JButton(tr("action.edit_page_title"));
+    private final JPanel titleLayoutPanel = new JPanel(new GridBagLayout());
+    private final JComboBox<String> titlePosition = new JComboBox<>(new String[] {
+            tr("position.top"), tr("position.bottom"), tr("position.left"), tr("position.right") });
+    private final JSpinner titleOffset = new JSpinner(new SpinnerNumberModel(0, 0, 290, 1));
+    private final JSpinner titleHeight = new JSpinner(new SpinnerNumberModel(24, 10, 96, 1));
+    private final JSpinner titleBarLength = new JSpinner(new SpinnerNumberModel(228, 1, 292, 1));
+    private final JSpinner titleBarThickness = new JSpinner(new SpinnerNumberModel(1, 1, 96, 1));
+    private final JCheckBox titleBarVisible = new JCheckBox(tr("option.title_bar_visible"), true);
+    private final JButton titleBarColor = colorSwatch("#DDCDAA", tr("field.title_bar_color"));
+    private boolean editingTitle;
     private final JSpinner fontSize = new JSpinner(new SpinnerNumberModel(12, 6, 48, 1));
     private final JComboBox<String> textAlignment = new JComboBox<String>(new String[]{"LEFT", "CENTER", "RIGHT"});
     private final JSpinner elementX = new JSpinner(new SpinnerNumberModel(18, 0, 255, 1));
@@ -221,7 +235,7 @@ extends ModElementGUI<CustomBook> {
         this.bindLiveSpinner(this.elementY, () -> this.geometryChangedFromEditor(this.elementY, "Y"));
         this.bindLiveSpinner(this.elementW, () -> this.geometryChangedFromEditor(this.elementW, "W"));
         this.bindLiveSpinner(this.elementH, () -> this.geometryChangedFromEditor(this.elementH, "H"));
-        this.bindLiveSpinner(this.fontSize, this::applyLiveFontSize);
+        this.bindFontSize();
     }
 
     private void initMultiTypeImagePickers() {
@@ -317,7 +331,7 @@ extends ModElementGUI<CustomBook> {
         CustomBookGUI.setCompactWidth(this.rarity, 320);
         CustomBookGUI.setCompactWidth(this.stackSize, 120);
         CustomBookGUI.setCompactWidth(this.enchantability, 120);
-        CustomBookGUI.setCompactWidth(this.generation, 120);
+        CustomBookGUI.setCompactWidth(this.generation, 220);
         CustomBookGUI.setCompactWidth(this.hideNextArrowAtCategoryEnd, 390);
         this.creativeTabsField.setPreferredSize(new Dimension(430, 44));
         this.creativeTabsField.setMinimumSize(new Dimension(330, 44));
@@ -368,7 +382,7 @@ extends ModElementGUI<CustomBook> {
         int n2 = 0;
         this.addRow(jPanel3, gridBagConstraints2, n2++, CustomBookGUI.tr("field.book_title"), this.bookTitle, null);
         this.addRow(jPanel3, gridBagConstraints2, n2++, CustomBookGUI.tr("field.author"), this.author, null);
-        this.addRow(jPanel3, gridBagConstraints2, n2++, CustomBookGUI.tr("field.book_generation"), this.generation, "custombook/properties/book_generation");
+        this.addRow(jPanel3, gridBagConstraints2, n2++, CustomBookGUI.tr("field.book_generation"), this.generation, null);
         this.addRow(jPanel3, gridBagConstraints2, n2++, CustomBookGUI.tr("field.starting_book"), this.startingBook, "custombook/properties/starting_book");
         this.addRow(jPanel3, gridBagConstraints2, n2++, CustomBookGUI.tr("field.category_navigation"), this.hideNextArrowAtCategoryEnd, null);
         JPanel jPanel4 = new JPanel();
@@ -467,9 +481,14 @@ extends ModElementGUI<CustomBook> {
         jPanel.setBorder(BorderFactory.createTitledBorder(CustomBookGUI.tr("section.page_elements")));
         JPanel jPanel2 = new JPanel(new BorderLayout(6, 6));
         JPanel jPanel3 = new JPanel(new BorderLayout(6, 0));
+        this.pageTitle.setEditable(false);
         jPanel3.add((Component)new JLabel(CustomBookGUI.tr("field.page_title")), "West");
         jPanel3.add((Component)this.pageTitle, "Center");
-        jPanel3.add((Component)this.pageTitleVisible, "East");
+        JPanel titleActions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+        titleActions.add(this.editPageTitle);
+        titleActions.add(this.pageTitleVisible);
+        jPanel3.add(titleActions, "East");
+        this.editPageTitle.addActionListener(event -> this.selectPageTitle());
         jPanel2.add((Component)jPanel3, "North");
         jPanel2.add((Component)this.createElementToolbar(), "Center");
         jPanel.add((Component)jPanel2, "North");
@@ -486,29 +505,13 @@ extends ModElementGUI<CustomBook> {
         this.addGeometryField(jPanel4, 2, CustomBookGUI.tr("field.width"), this.elementW);
         this.addGeometryField(jPanel4, 3, CustomBookGUI.tr("field.height"), this.elementH);
         jPanel.add((Component)jPanel4, "South");
-        this.pageTitle.getDocument().addDocumentListener(CustomBookGUI.simpleListener(() -> {
-            if (!this.loadingPage && this.activePage != null) {
-                this.activePage.title = this.pageTitle.getText().isBlank() ? CustomBookGUI.tr("default.page_plain") : this.pageTitle.getText();
-                DefaultMutableTreeNode defaultMutableTreeNode = this.selectedPageNode();
-                if (defaultMutableTreeNode != null) {
-                    this.treeModel.nodeChanged(defaultMutableTreeNode);
-                }
-                this.previewCanvas.repaint();
-            }
-        }));
         this.pageTitleVisible.addActionListener(actionEvent -> {
             if (!this.loadingPage && this.activePage != null) {
                 this.activePage.showTitle = this.pageTitleVisible.isSelected();
                 this.previewCanvas.repaint();
             }
         });
-        this.textEditor.getDocument().addDocumentListener(CustomBookGUI.simpleListener(() -> {
-            if (!this.loadingElement && this.activeElement != null && "TEXT".equals(this.activeElement.type)) {
-                this.activeElement.content = CustomBookGUI.limit(this.textEditor.getText(), MAX_TEXT_LENGTH);
-                this.syncLegacyPageContent();
-                this.previewCanvas.repaint();
-            }
-        }));
+        this.textEditor.setOnChange(this::syncVisualText);
         this.buttonLabel.getDocument().addDocumentListener(CustomBookGUI.simpleListener(() -> {
             if (!this.loadingElement && this.activeElement != null && "BUTTON".equals(this.activeElement.type)) {
                 this.activeElement.label = this.buttonLabel.getText().isBlank() ? CustomBookGUI.tr("default.button") : this.buttonLabel.getText();
@@ -582,9 +585,8 @@ extends ModElementGUI<CustomBook> {
             }
         });
         this.textAlignment.addActionListener(actionEvent -> {
-            if (!this.loadingElement && this.activeElement != null && "TEXT".equals(this.activeElement.type)) {
-                this.activeElement.align = (String)this.textAlignment.getSelectedItem();
-                this.previewCanvas.repaint();
+            if (!this.loadingElement && this.canEditText()) {
+                this.applyTextStyle("align", (String)this.textAlignment.getSelectedItem(), true);
             }
         });
         return jPanel;
@@ -633,12 +635,114 @@ extends ModElementGUI<CustomBook> {
     private JPanel createTextCard() {
         JPanel jPanel = new JPanel(new BorderLayout(6, 6));
         jPanel.add((Component)this.createFormattingToolbar(), "North");
-        this.textEditor.setFont(new Font("Monospaced", 0, 14));
+        this.textEditor.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        this.textEditor.setBackground(new Color(0xFFF4D6));
         this.textEditor.setMargin(new Insets(10, 10, 10, 10));
+        this.textEditor.addCaretListener(event -> this.updateTextFormattingControls());
         jPanel.add((Component)new JScrollPane(this.textEditor), "Center");
-        JLabel jLabel = new JLabel(CustomBookGUI.tr("hint.text_formatting"));
-        jPanel.add((Component)jLabel, "South");
+        JPanel footer = new JPanel(new BorderLayout(4, 4));
+        footer.add(this.createTitleLayoutPanel(), BorderLayout.CENTER);
+        footer.add(new JLabel(CustomBookGUI.tr("hint.text_formatting")), BorderLayout.SOUTH);
+        jPanel.add(footer, BorderLayout.SOUTH);
         return jPanel;
+    }
+
+
+    private JPanel createTitleLayoutPanel() {
+        this.titleLayoutPanel.setBorder(BorderFactory.createTitledBorder(tr("section.title_layout")));
+        this.addTitleControl(0, tr("field.title_position"), this.titlePosition);
+        this.addTitleControl(1, tr("field.title_offset"), this.titleOffset);
+        this.addTitleControl(2, tr("field.title_height"), this.titleHeight);
+        this.addTitleControl(3, tr("field.title_bar_length"), this.titleBarLength);
+        this.addTitleControl(4, tr("field.title_bar_thickness"), this.titleBarThickness);
+        this.addTitleControl(5, tr("field.title_bar_color"), this.titleBarColor);
+        this.addTitleControl(6, "", this.titleBarVisible);
+        this.titlePosition.addActionListener(event -> this.titleLayoutChanged());
+        this.titleBarVisible.addActionListener(event -> this.titleLayoutChanged());
+        for (JSpinner spinner : List.of(this.titleOffset, this.titleHeight, this.titleBarLength, this.titleBarThickness)) {
+            this.bindLiveSpinner(spinner, this::titleLayoutChanged);
+        }
+        this.titleBarColor.addActionListener(event -> {
+            if (this.activePage == null) return;
+            Color selected = JColorChooser.showDialog(this, tr("field.title_bar_color"),
+                    Color.decode(this.activePage.getTitleDesign().barColor));
+            if (selected != null) {
+                setColorSwatch(this.titleBarColor, String.format("#%02X%02X%02X", selected.getRed(), selected.getGreen(), selected.getBlue()));
+                this.titleLayoutChanged();
+            }
+        });
+        this.titleLayoutPanel.setVisible(false);
+        return this.titleLayoutPanel;
+    }
+
+    private void addTitleControl(int index, String label, JComponent control) {
+        GridBagConstraints c = new GridBagConstraints();
+        c.insets = new Insets(3, 5, 3, 5);
+        c.anchor = GridBagConstraints.WEST;
+        c.gridy = index / 2;
+        c.gridx = (index % 2) * 2;
+        this.titleLayoutPanel.add(new JLabel(label), c);
+        c.gridx++;
+        c.fill = GridBagConstraints.HORIZONTAL;
+        c.weightx = 1;
+        control.setPreferredSize(new Dimension(control instanceof JComboBox ? 110 : 90, 26));
+        this.titleLayoutPanel.add(control, c);
+    }
+
+    private void selectPageTitle() {
+        if (this.activePage == null) return;
+        this.selectElement(null);
+        this.editingTitle = true;
+        boolean previous = this.loadingElement;
+        this.loadingElement = true;
+        try {
+            this.textEditor.setDefaultStyle(12, "#38291E");
+            this.textEditor.setMarkup(this.activePage.getTitleContent(), this.activePage.getTitleDesign().align);
+            this.textEditor.setCaretPosition(0);
+            this.titleLayoutPanel.setVisible(true);
+            this.inspectorCardLayout.show(this.inspectorCards, "TEXT");
+            this.selectionInfo.setText(tr("tooltip.title_drag"));
+            this.syncTitleControls();
+        } finally {
+            this.loadingElement = previous;
+        }
+        this.updateTextFormattingControls();
+        this.textEditor.requestFocusInWindow();
+        this.previewCanvas.repaint();
+    }
+
+    private void syncTitleControls() {
+        if (this.activePage == null) return;
+        boolean previous = this.loadingElement;
+        this.loadingElement = true;
+        try {
+            CustomBook.TitleDesign title = this.activePage.getTitleDesign();
+            this.titlePosition.setSelectedIndex(List.of("TOP", "BOTTOM", "LEFT", "RIGHT").indexOf(title.position));
+            this.titleOffset.setValue(title.offset);
+            this.titleHeight.setValue(title.height);
+            this.titleBarLength.setValue(title.barLength);
+            this.titleBarThickness.setValue(title.barThickness);
+            this.titleBarVisible.setSelected(title.barVisible);
+            setColorSwatch(this.titleBarColor, title.barColor);
+        } finally {
+            this.loadingElement = previous;
+        }
+    }
+
+    private void titleLayoutChanged() {
+        if (this.loadingElement || this.loadingPage || !this.editingTitle || this.activePage == null) return;
+        CustomBook.TitleDesign title = this.activePage.getTitleDesign();
+        title.position = List.of("TOP", "BOTTOM", "LEFT", "RIGHT").get(Math.max(0, this.titlePosition.getSelectedIndex()));
+        title.offset = this.spinnerEditorInt(this.titleOffset, title.offset);
+        title.height = this.spinnerEditorInt(this.titleHeight, title.height);
+        title.barLength = this.spinnerEditorInt(this.titleBarLength, title.barLength);
+        title.barThickness = this.spinnerEditorInt(this.titleBarThickness, title.barThickness);
+        title.barVisible = this.titleBarVisible.isSelected();
+        title.barColor = String.valueOf(this.titleBarColor.getClientProperty("customBook.hex"));
+        title.normalize();
+        // Do not rewrite a spinner document from its own DocumentListener.
+        SwingUtilities.invokeLater(() -> { if (this.editingTitle) this.syncTitleControls(); });
+        this.previewCanvas.repaint();
     }
 
     private JPanel createMediaCard() {
@@ -813,6 +917,12 @@ extends ModElementGUI<CustomBook> {
         jButton8.addActionListener(actionEvent -> this.insertPageLink());
         jToolBar.add(jButton7);
         jToolBar.add(jButton8);
+        JButton undo = compactButton("↶", tr("action.undo"));
+        JButton redo = compactButton("↷", tr("action.redo"));
+        undo.addActionListener(event -> this.textEditor.undo());
+        redo.addActionListener(event -> this.textEditor.redo());
+        jToolBar.add(undo);
+        jToolBar.add(redo);
         return jToolBar;
     }
 
@@ -1049,6 +1159,7 @@ extends ModElementGUI<CustomBook> {
                 this.pageTitle.setText("");
                 this.pageTitle.setEnabled(false);
                 this.pageTitleVisible.setEnabled(false);
+                this.editPageTitle.setEnabled(false);
             }
             finally {
                 this.loadingPage = previousLoadingState;
@@ -1066,6 +1177,7 @@ extends ModElementGUI<CustomBook> {
         try {
             this.pageTitle.setEnabled(true);
             this.pageTitleVisible.setEnabled(true);
+            this.editPageTitle.setEnabled(true);
             this.pageTitle.setText(bookPage.title == null ? CustomBookGUI.tr("default.page_plain") : bookPage.title);
             this.pageTitleVisible.setSelected(bookPage.showTitle);
         }
@@ -1077,6 +1189,8 @@ extends ModElementGUI<CustomBook> {
     }
 
     private void selectElement(CustomBook.BookElement bookElement) {
+        this.editingTitle = false;
+        this.titleLayoutPanel.setVisible(false);
         this.activeElement = bookElement;
         this.previewCanvas.selected = bookElement;
         boolean previousLoadingState = this.loadingElement;
@@ -1096,7 +1210,9 @@ extends ModElementGUI<CustomBook> {
                 switch (bookElement.type) {
                 case "TEXT": {
                     this.inspectorCardLayout.show(this.inspectorCards, "TEXT");
-                    this.textEditor.setText(bookElement.content == null ? "" : bookElement.content);
+                    this.textEditor.setDefaultStyle(12, "#241B13");
+                    this.textEditor.setMarkup(bookElement.content == null ? "" : bookElement.content,
+                            bookElement.align == null ? "LEFT" : bookElement.align);
                     this.textEditor.setCaretPosition(0);
                     this.textAlignment.setSelectedItem(bookElement.align == null ? "LEFT" : bookElement.align);
                     break;
@@ -1576,55 +1692,107 @@ extends ModElementGUI<CustomBook> {
         this.previewCanvas.repaint();
     }
 
+    private void bindFontSize() {
+        this.fontSize.addChangeListener(event -> this.applyLiveFontSize());
+        if (this.fontSize.getEditor() instanceof JSpinner.DefaultEditor editor) {
+            editor.getTextField().getDocument().addDocumentListener(simpleListener(() -> {
+                if (this.loadingElement || !editor.getTextField().hasFocus()) return;
+                SwingUtilities.invokeLater(() -> {
+                    if (this.loadingElement || !editor.getTextField().hasFocus()) return;
+                    try {
+                        int value = Integer.parseInt(editor.getTextField().getText().trim());
+                        if (value >= 6 && value <= 48) this.fontSize.setValue(value);
+                    } catch (NumberFormatException ignored) { }
+                });
+            }));
+        }
+    }
+
     private void applyLiveFontSize() {
-        if (this.loadingElement || this.activeElement == null || !"TEXT".equals(this.activeElement.type)) {
+        if (this.loadingElement || !this.canEditText()) {
             return;
         }
-        int n = Math.max(6, Math.min(48, this.spinnerEditorInt(this.fontSize, 12)));
-        int n2 = this.textEditor.getSelectionStart();
-        int n3 = this.textEditor.getSelectionEnd();
-        String string = this.textEditor.getText();
-        if (string == null) {
-            string = "";
-        }
-        if (n2 == n3) {
-            n2 = 0;
-            n3 = string.length();
-        }
-        if (n2 < 0 || n3 > string.length() || n2 > n3) {
-            return;
-        }
-        String string2 = string.substring(n2, n3);
-        Matcher matcher = Pattern.compile("(?s)^\\[size=\\d+\\](.*)\\[/size\\]$").matcher(string2);
-        String string3 = matcher.matches() ? matcher.group(1) : string2;
-        String string4 = "[size=" + n + "]" + string3 + "[/size]";
+        this.applyTextStyle("size", String.valueOf(((Number)this.fontSize.getValue()).intValue()), false);
+    }
+
+    private String editorText() {
+        return this.textEditor.getMarkup();
+    }
+
+    private void updateTextFormattingControls() {
+        if (this.loadingElement || !this.canEditText()) return;
+        java.util.Map<String, String> styles = this.textEditor.getSelectionStyles();
         boolean previousLoadingState = this.loadingElement;
         this.loadingElement = true;
         try {
-            this.textEditor.select(n2, n3);
-            this.textEditor.replaceSelection(string4);
-            this.textEditor.select(n2, n2 + string4.length());
-        }
-        finally {
+            this.fontSize.setValue(CustomBookGUI.safeInt(styles.get("size"), 12, 6, 48));
+            this.textAlignment.setSelectedItem(styles.getOrDefault("align",
+                    this.editingTitle ? this.activePage.getTitleDesign().align : this.activeElement.align));
+        } finally {
             this.loadingElement = previousLoadingState;
         }
-        this.activeElement.content = CustomBookGUI.limit(this.textEditor.getText(), MAX_TEXT_LENGTH);
-        this.syncLegacyPageContent();
-        this.previewCanvas.repaint();
+    }
+
+    private void applyTextStyle(String style, String value, boolean paragraphs) {
+        if (this.loadingElement || !this.canEditText()) return;
+        this.performVisualEdit(() -> this.textEditor.applyStyle(style, value, paragraphs));
+    }
+
+    private void performVisualEdit(Runnable action) {
+        if (this.loadingElement || !this.canEditText()) return;
+        this.loadingElement = true;
+        try {
+            action.run();
+        } catch (IllegalArgumentException limit) {
+            this.selectionInfo.setText(tr("error.text_limit"));
+        } finally {
+            this.loadingElement = false;
+        }
+        this.syncVisualText();
+        this.updateTextFormattingControls();
     }
 
     private void wrapSelection(String string, String string2, String string3) {
-        if (this.activeElement == null || !"TEXT".equals(this.activeElement.type)) {
+        if (!this.canEditText()) return;
+        String tag = string.substring(1, string.length() - 1);
+        int equals = tag.indexOf('=');
+        if (equals < 0) {
+            this.performVisualEdit(() -> this.textEditor.toggleStyle(tag));
+            this.updateTextFormattingControls();
+            this.textEditor.requestFocusInWindow();
             return;
         }
-        int n = this.textEditor.getSelectionStart();
-        String string4 = this.textEditor.getSelectedText();
-        if (string4 == null || string4.isEmpty()) {
-            string4 = string3;
+        if ((tag.startsWith("url=") || tag.startsWith("page="))
+                && this.textEditor.getSelectionStart() == this.textEditor.getSelectionEnd()) {
+            int start = this.textEditor.getSelectionStart();
+            if (this.editorText().length() + string3.length() + string.length() + string2.length() > MAX_TEXT_LENGTH) return;
+            this.textEditor.replaceSelection(string3);
+            this.textEditor.select(start, start + string3.length());
         }
-        this.textEditor.replaceSelection(string + string4 + string2);
+        this.applyTextStyle(equals < 0 ? tag : tag.substring(0, equals),
+                equals < 0 ? "" : tag.substring(equals + 1), false);
         this.textEditor.requestFocusInWindow();
-        this.textEditor.select(n + string.length(), n + string.length() + string4.length());
+    }
+
+    private boolean canEditText() {
+        return this.editingTitle ? this.activePage != null
+                : this.activeElement != null && "TEXT".equals(this.activeElement.type);
+    }
+
+    private void syncVisualText() {
+        if (this.loadingElement || this.loadingPage || !this.canEditText()) return;
+        if (this.editingTitle) {
+            this.activePage.getTitleDesign().content = this.editorText();
+            String plain = this.textEditor.getText().replace('\n', ' ').trim();
+            this.activePage.title = plain.isBlank() ? tr("default.page_plain") : limit(plain, 256);
+            this.pageTitle.setText(this.activePage.title);
+            DefaultMutableTreeNode node = this.selectedPageNode();
+            if (node != null) this.treeModel.nodeChanged(node);
+        } else {
+            this.activeElement.content = this.editorText();
+            this.syncLegacyPageContent();
+        }
+        this.previewCanvas.repaint();
     }
 
     private static JButton colorSwatch(String string, String string2) {
@@ -1697,7 +1865,7 @@ extends ModElementGUI<CustomBook> {
     }
 
     private void insertUrlLink() {
-        if (this.activeElement == null || !"TEXT".equals(this.activeElement.type)) {
+        if (!this.canEditText()) {
             return;
         }
         String string = JOptionPane.showInputDialog((Component)((Object)this), CustomBookGUI.tr("dialog.url_prompt"), "https://");
@@ -1709,7 +1877,7 @@ extends ModElementGUI<CustomBook> {
 
     private void insertPageLink() {
         Object object;
-        if (this.activeElement == null || !"TEXT".equals(this.activeElement.type)) {
+        if (!this.canEditText()) {
             return;
         }
         List<PageRef> list = this.collectPageRefs();
@@ -1823,9 +1991,17 @@ extends ModElementGUI<CustomBook> {
         }
         if (object3 instanceof CustomBook.BookPage) {
             object2 = (CustomBook.BookPage)object3;
-            ((CustomBook.BookPage)object2).title = ((String)object).trim();
+            CustomBook.BookPage renamed = (CustomBook.BookPage)object2;
+            VisualRichTextEditor renameEditor = new VisualRichTextEditor();
+            renameEditor.setDefaultStyle(12, "#38291E");
+            renameEditor.setMarkup(renamed.getTitleContent(), renamed.getTitleDesign().align);
+            renameEditor.selectAll();
+            renameEditor.replaceSelection(((String)object).trim());
+            renamed.getTitleDesign().content = renameEditor.getMarkup();
+            renamed.title = ((String)object).trim();
             if (object2 == this.activePage) {
                 this.pageTitle.setText(((CustomBook.BookPage)object2).title);
+                if (this.editingTitle) this.selectPageTitle();
             }
         }
         this.treeModel.nodeChanged(defaultMutableTreeNode);
@@ -2262,7 +2438,7 @@ extends ModElementGUI<CustomBook> {
         this.displayName.setText(customBook.name == null ? "Custom Book" : customBook.name);
         this.bookTitle.setText(customBook.getSafeBookTitle());
         this.author.setText(customBook.getSafeAuthor());
-        this.generation.setValue(customBook.getSafeGeneration());
+        this.generation.setSelectedIndex(customBook.getSafeGeneration());
         this.rarity.setSelectedItem(customBook.getSafeRarity());
         this.stackSize.setValue(customBook.getSafeStackSize());
         this.enchantability.setValue(customBook.getSafeEnchantability());
@@ -2333,6 +2509,7 @@ extends ModElementGUI<CustomBook> {
                 CustomBook.BookPage bookPage2 = new CustomBook.BookPage(bookPage.title == null ? "Page" : bookPage.title, "");
                 bookPage2.id = bookPage.id == null || bookPage.id.isBlank() ? UUID.randomUUID().toString() : bookPage.id;
                 bookPage2.showTitle = bookPage.showTitle;
+                bookPage2.titleDesign = bookPage.getTitleDesign().copy();
                 bookPage2.content = bookPage.content == null ? "" : bookPage.content;
                 bookPage2.elements.clear();
                 for (CustomBook.BookElement bookElement : bookPage.elements) {
@@ -2387,7 +2564,7 @@ extends ModElementGUI<CustomBook> {
         customBook.name = CustomBookGUI.safeText(this.displayName, this.modElement.getName());
         customBook.bookTitle = CustomBookGUI.limit(CustomBookGUI.safeText(this.bookTitle, customBook.name), 32);
         customBook.author = CustomBookGUI.limit(CustomBookGUI.safeText(this.author, "Unknown"), 256);
-        customBook.generation = this.safeSpinnerInt(this.generation, 0, 0, 3);
+        customBook.generation = Math.max(0, this.generation.getSelectedIndex());
         customBook.rarity = CustomBookGUI.safeComboString(this.rarity, "COMMON");
         customBook.stackSize = this.safeSpinnerInt(this.stackSize, 1, 1, 64);
         customBook.enchantability = this.safeSpinnerInt(this.enchantability, 0, 0, 128000);
@@ -2451,6 +2628,7 @@ extends ModElementGUI<CustomBook> {
                 savedPage.id = bookPage.id == null || bookPage.id.isBlank()
                         ? UUID.randomUUID().toString() : bookPage.id;
                 savedPage.showTitle = bookPage.showTitle;
+                savedPage.titleDesign = bookPage.getTitleDesign().copy();
                 savedPage.content = bookPage.content == null ? "" : bookPage.content;
                 savedPage.elements.clear();
                 if (bookPage.elements != null) {
@@ -2730,6 +2908,9 @@ extends ModElementGUI<CustomBook> {
         private int dragOffsetX;
         private int dragOffsetY;
         private boolean dragging;
+        private boolean draggingTitle;
+        private int titleDragOffsetX;
+        private int titleDragOffsetY;
         private boolean resizing;
         private ResizeHandle resizeHandle = ResizeHandle.NONE;
 
@@ -2746,6 +2927,15 @@ extends ModElementGUI<CustomBook> {
                         return;
                     }
                     Point point = PagePreviewCanvas.this.toLogical(mouseEvent.getPoint());
+                    if (PagePreviewCanvas.this.titleHandleAt(point)) {
+                        CustomBook.TitleLayout layout = PagePreviewCanvas.this.page.getTitleLayout();
+                        CustomBookGUI.this.selectPageTitle();
+                        PagePreviewCanvas.this.draggingTitle = true;
+                        PagePreviewCanvas.this.titleDragOffsetX = point.x - layout.handleX();
+                        PagePreviewCanvas.this.titleDragOffsetY = point.y - layout.handleY();
+                        PagePreviewCanvas.this.updateCursorFor(point);
+                        return;
+                    }
                     ResizeHandle resizeHandle2 = resizeHandle = PagePreviewCanvas.this.selected == null ? ResizeHandle.NONE : PagePreviewCanvas.this.handleAt(point.x, point.y, PagePreviewCanvas.this.selected);
                     if (resizeHandle != ResizeHandle.NONE) {
                         PagePreviewCanvas.this.resizing = true;
@@ -2773,6 +2963,7 @@ extends ModElementGUI<CustomBook> {
 
                 @Override
                 public void mouseReleased(MouseEvent mouseEvent) {
+                    PagePreviewCanvas.this.draggingTitle = false;
                     PagePreviewCanvas.this.dragging = false;
                     PagePreviewCanvas.this.resizing = false;
                     PagePreviewCanvas.this.resizeHandle = ResizeHandle.NONE;
@@ -2781,7 +2972,7 @@ extends ModElementGUI<CustomBook> {
 
                 @Override
                 public void mouseExited(MouseEvent mouseEvent) {
-                    if (!PagePreviewCanvas.this.dragging && !PagePreviewCanvas.this.resizing) {
+                    if (!PagePreviewCanvas.this.dragging && !PagePreviewCanvas.this.resizing && !PagePreviewCanvas.this.draggingTitle) {
                         PagePreviewCanvas.this.setCursor(Cursor.getDefaultCursor());
                     }
                 }
@@ -2790,6 +2981,12 @@ extends ModElementGUI<CustomBook> {
 
                 @Override
                 public void mouseDragged(MouseEvent mouseEvent) {
+                    if (PagePreviewCanvas.this.draggingTitle && PagePreviewCanvas.this.page != null) {
+                        Point point = PagePreviewCanvas.this.toLogical(mouseEvent.getPoint());
+                        PagePreviewCanvas.this.moveTitleHandle(point.x - PagePreviewCanvas.this.titleDragOffsetX,
+                                point.y - PagePreviewCanvas.this.titleDragOffsetY);
+                        return;
+                    }
                     if (PagePreviewCanvas.this.selected == null) {
                         return;
                     }
@@ -2813,6 +3010,7 @@ extends ModElementGUI<CustomBook> {
         }
 
         void setPage(CustomBook.BookPage bookPage) {
+            this.draggingTitle = false;
             this.page = bookPage;
             this.selected = null;
             this.dragging = false;
@@ -2987,7 +3185,27 @@ extends ModElementGUI<CustomBook> {
             return Math.abs(n - n3) <= 5 && Math.abs(n2 - n4) <= 5;
         }
 
+        private boolean titleHandleAt(Point point) {
+            if (this.page == null || !this.page.showTitle) return false;
+            CustomBook.TitleLayout title = this.page.getTitleLayout();
+            return this.near(point.x, point.y, title.handleX(), title.handleY());
+        }
+
+        private void moveTitleHandle(int x, int y) {
+            CustomBook.TitleDesign title = this.page.getTitleDesign();
+            title.offset = title.offsetForHandle(x, y,
+                    CustomBookGUI.this.snapToGrid.isSelected() ? this.gridStep() : 0);
+            CustomBookGUI.this.syncTitleControls();
+            this.repaint();
+        }
+
         private void updateCursorFor(Point point) {
+            if (this.draggingTitle || this.titleHandleAt(point)) {
+                this.setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
+                this.setToolTipText(tr("tooltip.title_drag"));
+                return;
+            }
+            this.setToolTipText(null);
             ResizeHandle resizeHandle;
             if (this.resizing) {
                 this.setCursor(this.cursorFor(this.resizeHandle));
@@ -3038,13 +3256,7 @@ extends ModElementGUI<CustomBook> {
             }
             graphics2D.setColor(new Color(55, 42, 30));
             graphics2D.setFont(new Font("SansSerif", 1, 12));
-            if (this.page == null || this.page.showTitle) {
-                String string = this.page == null || this.page.title == null ? "Page" : this.page.title;
-                FontMetrics fontMetrics = graphics2D.getFontMetrics();
-                graphics2D.drawString(string, Math.max(6, (256 - fontMetrics.stringWidth(string)) / 2), 25);
-                graphics2D.setColor(new Color(132, 110, 82));
-                graphics2D.drawLine(14, 33, 242, 33);
-            }
+            if (this.page != null && this.page.showTitle) this.paintPageTitle(graphics2D);
             if (this.page != null) {
                 this.page.normalizeElements();
                 for (CustomBook.BookElement bookElement : this.page.elements) {
@@ -3052,7 +3264,47 @@ extends ModElementGUI<CustomBook> {
                     this.paintElement(graphics2D, bookElement);
                 }
             }
+            if (this.page != null && this.page.showTitle) {
+                CustomBook.TitleLayout title = this.page.getTitleLayout();
+                graphics2D.setColor(CustomBookGUI.this.editingTitle ? new Color(45, 125, 225) : new Color(118, 86, 49));
+                graphics2D.fillOval(title.handleX() - 5, title.handleY() - 5, 10, 10);
+                graphics2D.setColor(Color.WHITE);
+                graphics2D.drawOval(title.handleX() - 5, title.handleY() - 5, 10, 10);
+            }
             graphics2D.dispose();
+        }
+
+        private void paintPageTitle(Graphics2D graphics) {
+            CustomBook.TitleLayout layout = this.page.getTitleLayout();
+            CustomBook.TitleDesign title = this.page.getTitleDesign();
+            Graphics2D content = (Graphics2D)graphics.create();
+            content.clipRect(layout.x(), layout.y(), layout.width(), layout.height());
+            int width = layout.width(), height = layout.height();
+            if (layout.rotation() < 0) {
+                content.translate(layout.x(), layout.y() + layout.height());
+                content.rotate(-Math.PI / 2);
+                width = layout.height(); height = layout.width();
+            } else if (layout.rotation() > 0) {
+                content.translate(layout.x() + layout.width(), layout.y());
+                content.rotate(Math.PI / 2);
+                width = layout.height(); height = layout.width();
+            } else content.translate(layout.x(), layout.y());
+            JEditorPane preview = new JEditorPane("text/html", "<html><body style='margin:0;padding:1px;color:#38291E;font-family:sans-serif;font-size:12px'>"
+                    + RichTextTools.previewHtml(this.page.getTitleContent(), title.align) + "</body></html>");
+            preview.setEditable(false);
+            preview.setOpaque(false);
+            preview.setBorder(null);
+            preview.setSize(width, height);
+            preview.paint(content);
+            content.dispose();
+            if (title.barVisible) {
+                graphics.setColor(Color.decode(title.barColor));
+                graphics.fillRect(layout.barX(), layout.barY(), layout.barWidth(), layout.barHeight());
+            }
+            if (CustomBookGUI.this.editingTitle) {
+                graphics.setColor(new Color(45, 125, 225));
+                graphics.drawRect(layout.x(), layout.y(), layout.width(), layout.height());
+            }
         }
 
         private void paintElement(Graphics2D graphics2D, CustomBook.BookElement bookElement) {
@@ -3119,7 +3371,7 @@ extends ModElementGUI<CustomBook> {
                 case "RIGHT" -> "right";
                 default -> "left";
             };
-            Object object = new JEditorPane("text/html", "<html><body style='margin:0;padding:1px;background:transparent;color:#241b13;font-family:sans-serif;font-size:12px;text-align:" + string + "'>" + CustomBookGUI.this.markupToHtml(bookElement.content) + "</body></html>");
+            Object object = new JEditorPane("text/html", "<html><body style='margin:0;padding:1px;background:transparent;color:#241b13;font-family:sans-serif;font-size:12px;text-align:" + string + "'>" + RichTextTools.previewHtml(bookElement.content, bookElement.align) + "</body></html>");
             ((JTextComponent)object).setEditable(false);
             ((JComponent)object).setOpaque(false);
             ((JComponent)object).setBorder(null);
