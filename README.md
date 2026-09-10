@@ -48,8 +48,6 @@ Install only `CustomBookCreator-MCreator2026.2-v2.0.0.zip`. Restart MCreator, re
 
 English is the source language. The plugin includes every locale available in MCreator 2026.2, covering editor labels, dialogs, messages, tooltips, and help pages.
 
-The new title controls have English and French labels; other locales currently use English for these new controls. Localization of authored book content and the Translation key button have been removed. Existing `[tr=...]` tokens remain literal text; they are not deleted or resolved. This does not remove the plugin's own interface translations.
-
 ## Starting books
 
 Each custom book can optionally be granted once to every player on their first world join. A persistent per-player marker prevents the book from being granted again after death or reconnection.
