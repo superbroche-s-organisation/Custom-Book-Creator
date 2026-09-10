@@ -6,7 +6,7 @@ Author: **Superbroche**.
 
 **V2** introduces visual rich-text editing, independently styled paragraphs, fully customizable page titles and named book-generation choices. It also includes experimental Forge, NeoForge and Fabric 1.20.x generator extensions. Book-content localization is not included; the plugin's own interface translations remain available.
 
-Download the installable plugin and sources from [V2.0.0 on GitHub](https://github.com/superbroche-s-organisation/Custom-Book-Creator/releases/tag/v2.0.0). See the [patch notes](docs/2.0.0/PATCH_NOTES.md), [detailed changelog](docs/2.0.0/CHANGELOG.md), [user guide](docs/2.0.0/GUIDE.md), and [complete feature description](docs/2.0.0/MCREATOR_DESCRIPTION.md).
+Download the installable plugin and sources from [V2.0.0 on GitHub](https://github.com/superbroche-s-organisation/Custom-Book-Creator/releases/tag/v2.0.0). See the [patch notes](docs/2.0.0/PATCH_NOTES.md), [detailed changelog](CHANGELOG.md), [user guide](docs/2.0.0/GUIDE.md), and [complete feature description](docs/2.0.0/MCREATOR_DESCRIPTION.md).
 
 This release succeeds **1.1.2-hotfix** and incorporates the local 1.2.0 test builds. Historical test documents describe those snapshots, not necessarily V2 behavior.
 
