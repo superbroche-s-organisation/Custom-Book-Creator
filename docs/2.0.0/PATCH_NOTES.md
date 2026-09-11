@@ -23,9 +23,6 @@ V2 brings visual text editing and much more control over page titles. It include
 
 Existing workspace-loading safeguards, drag-and-drop organization, once-only starting books and save-method compatibility fixes remain included.
 
-## Localization
-
-Authored-book translation keys and the Translation key button have been withdrawn. Old `[tr=...]` text is retained literally, not translated or silently deleted. The plugin's own 30 interface-language catalogs remain included. New title controls are translated into English and French, with English fallback in the other locales.
 
 ## Compatibility and validation
 
