@@ -27,11 +27,11 @@ public final class TemplateRenderTest {
 
     private static void verifyGenerator(String generator, Path outputRoot) throws Exception {
         Path templateRoot = Path.of(System.getProperty("custombook.pluginRoot", "src/main/resources"), generator, "templates", "custombook");
-        Configuration configuration = new Configuration(Configuration.VERSION_2_3_34);
+        Configuration configuration = new Configuration(Configuration.VERSION_2_3_31);
         configuration.setDirectoryForTemplateLoading(templateRoot.toFile());
         configuration.setDefaultEncoding("UTF-8");
         configuration.setTemplateExceptionHandler(TemplateExceptionHandler.RETHROW_HANDLER);
-        BeansWrapperBuilder wrapper = new BeansWrapperBuilder(Configuration.VERSION_2_3_34);
+        BeansWrapperBuilder wrapper = new BeansWrapperBuilder(Configuration.VERSION_2_3_31);
         wrapper.setExposeFields(true);
         configuration.setObjectWrapper(wrapper.build());
 
@@ -45,6 +45,28 @@ public final class TemplateRenderTest {
         requireResolved(generator, item);
         requireResolved(generator, screen);
         requireResolved(generator, clientEvents);
+        for (String writingTemplate : List.of("writing_data", "writing_server", "writing_client", "writing_screen", "writing_network", "writing_fabric_client")) {
+            if (!Files.isRegularFile(templateRoot.resolve(writingTemplate + ".java.ftl"))) continue;
+            String generated = render(configuration, writingTemplate + ".java.ftl", model);
+            requireResolved(generator, generated);
+            if (outputRoot != null) {
+                String subdirectory = switch (writingTemplate) {
+                    case "writing_server", "writing_data" -> "book";
+                    case "writing_screen" -> "client/gui";
+                    case "writing_network" -> "network";
+                    default -> "client";
+                };
+                String suffix = switch (writingTemplate) {
+                    case "writing_data" -> "Data";
+                    case "writing_server" -> "Server";
+                    case "writing_client" -> "Client";
+                    case "writing_screen" -> "Screen";
+                    case "writing_network" -> "Message";
+                    default -> "FabricClient";
+                };
+                write(outputRoot.resolve(generator).resolve("com/example/audit/" + subdirectory + "/AuditBookWriting" + suffix + ".java"), generated);
+            }
+        }
         require(item.contains("Rarity.EPIC") && item.contains("isFoil") && (generator.startsWith("fabric-") || item.contains("isPiglinCurrency"))
                         && item.contains("isCorrectToolForDrops"),
                 generator + ": optional item features did not render");
@@ -98,6 +120,13 @@ public final class TemplateRenderTest {
             write(packageRoot.resolve(Path.of("client", "AuditBookClientEvents.java")), clientEvents);
             write(packageRoot.resolve(Path.of("event", "AuditStartingBookEvents.java")), startingEvents);
         }
+        // Existing, read-only books must not require the optional writing classes.
+        for (var category : book.getBookCategories()) for (var page : category.pages)
+            page.elements.removeIf(element -> "INPUT".equals(element.type));
+        for (String file : List.of("item.java.ftl", "screen.java.ftl", "client_events.java.ftl")) {
+            String readonly = render(configuration, file, model);
+            require(!readonly.contains("BookWriting"), generator + ": read-only book references optional writing code");
+        }
         System.out.println("TEMPLATE_RENDER_OK " + generator);
     }
 
@@ -134,6 +163,11 @@ public final class TemplateRenderTest {
         // constant-pool regressions that an ASCII-only sample cannot detect.
         firstPage.elements.add(CustomBook.BookElement.text("漢".repeat(Short.MAX_VALUE)));
         firstPage.elements.add(CustomBook.BookElement.image("audit_image", 96, 64));
+        CustomBook.BookElement input = CustomBook.BookElement.input();
+        input.inputKey = "terms";
+        input.content = "Default terms";
+        input.inputChoices = new ArrayList<>(List.of("I agree.", "I decline.", "Quoted \"choice\" 📖"));
+        firstPage.elements.add(input);
         firstPage.elements.add(CustomBook.BookElement.gif(List.of("audit_gif_0", "audit_gif_1"), 80, 64, 64));
         CustomBook.BookElement previous = navigation(false);
         CustomBook.BookElement next = navigation(true);

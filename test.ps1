@@ -1,6 +1,8 @@
 param(
     [Parameter(Mandatory = $false)]
     [string]$MCreatorRoot = "D:\MCreator",
+    [ValidateSet("2026.2", "2024.4")]
+    [string]$TargetMCreator = "2026.2",
     # When supplied, TemplateRenderTest keeps its generated Java sources here
     # for compilation against the corresponding Minecraft/NeoForge libraries.
     [Parameter(Mandatory = $false)]
@@ -49,6 +51,11 @@ $testClasses = @(
 if ($testClasses.Count -eq 0) {
     throw "No public static void main(String[] args) test entry points were found."
 }
+if ($TargetMCreator -eq "2024.4") {
+    # This package intentionally contains Forge only; the seven Fabric profiles
+    # remain mandatory and are tested by the primary 2026.2 build.
+    $testClasses = @($testClasses | Where-Object SourceName -ne "FabricStartingBookTest")
+}
 
 $generatedSourcesPath = $null
 if (-not [string]::IsNullOrWhiteSpace($GeneratedSourcesDirectory)) {
@@ -72,7 +79,7 @@ $compiledTests = Join-Path $temporaryRoot "tests"
 
 try {
     Write-Host "Building the plugin before running tests..."
-    $pluginZip = & (Join-Path $projectRoot "build.ps1") -MCreatorRoot $MCreatorRoot -PassThru
+    $pluginZip = & (Join-Path $projectRoot "build.ps1") -MCreatorRoot $MCreatorRoot -TargetMCreator $TargetMCreator -PassThru
     if (-not ($pluginZip -is [string]) -or -not (Test-Path -LiteralPath $pluginZip -PathType Leaf)) {
         throw "The build did not return an installable plugin archive."
     }
@@ -107,7 +114,7 @@ try {
     $sourcePaths = @($testSources | ForEach-Object { $_.FullName })
 
     Write-Host ("Compiling {0} Java test/support files..." -f $sourcePaths.Count)
-    & $javac --release 21 -encoding UTF-8 -cp $compileClassPath -d $compiledTests $sourcePaths
+    & $javac --release 21 -proc:none -encoding UTF-8 -cp $compileClassPath -d $compiledTests $sourcePaths
     if ($LASTEXITCODE -ne 0) {
         throw "Java test compilation failed."
     }

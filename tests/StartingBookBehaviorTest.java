@@ -194,11 +194,11 @@ public final class StartingBookBehaviorTest {
     }
 
     private static String render(String generator) throws Exception {
-        Configuration configuration = new Configuration(Configuration.VERSION_2_3_34);
+        Configuration configuration = new Configuration(Configuration.VERSION_2_3_31);
         configuration.setDirectoryForTemplateLoading(Path.of("src", "main", "resources", generator, "templates", "custombook").toFile());
         configuration.setDefaultEncoding("UTF-8");
         configuration.setTemplateExceptionHandler(TemplateExceptionHandler.RETHROW_HANDLER);
-        BeansWrapperBuilder wrapper = new BeansWrapperBuilder(Configuration.VERSION_2_3_34);
+        BeansWrapperBuilder wrapper = new BeansWrapperBuilder(Configuration.VERSION_2_3_31);
         wrapper.setExposeFields(true);
         configuration.setObjectWrapper(wrapper.build());
         StringWriter output = new StringWriter();

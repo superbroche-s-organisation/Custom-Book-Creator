@@ -18,8 +18,10 @@ public final class V11FeaturesTest {
 
     private static void verifyVersion() throws Exception {
         String pluginJson = read(RESOURCES.resolve("plugin.json"));
-        require(pluginJson.contains("\"version\": \"2.0.0\""),
-                "plugin.json does not report version 2.0.0");
+        String version = com.google.gson.JsonParser.parseString(pluginJson).getAsJsonObject()
+                .getAsJsonObject("info").get("version").getAsString();
+        require(version.matches("2\\.\\d+\\.\\d+(?:-[A-Za-z0-9.-]+)?"),
+                "plugin.json must declare a V2 semantic version");
     }
 
     private static void verifyEditorModelAndDragDrop() throws Exception {

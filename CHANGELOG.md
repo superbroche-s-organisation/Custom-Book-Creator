@@ -1,3 +1,15 @@
+# Changelog — 2.1.0
+
+Author: **Superbroche** | September 30, 2026
+
+- Player-writable zones with free text, preset choices or both.
+- Per-copy answers, server-side permission procedures, permanent signing and a post-signature procedure hook.
+- NeoForge 1.21.8/26.2 and Fabric 26.2 profiles, plus separate MCreator 2024.4 / Forge 1.20.1 and MCreator 2022.2 / Forge 1.17.1 packages.
+- Offhand routing, Unicode message bounds, stale/replayed request rejection and Fabric starting-book retry fixes.
+- Release archives limited to compiled profiles; unvalidated experimental ports remain in source only.
+
+See the [complete V2.1 changelog](docs/2.1.0/CHANGELOG.md), [patch notes](docs/2.1.0/PATCH_NOTES.md), and [compatibility/validation record](docs/2.1.0/VALIDATION.md).
+
 # Changelog — 2.0.0
 
 Author: **Superbroche** | September 9, 2026

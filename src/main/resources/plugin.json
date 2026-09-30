@@ -7,8 +7,8 @@
   ],
   "info": {
     "name": "Custom Book Creator",
-    "version": "2.0.0",
-    "description": "Create visual books for MCreator 2026.2 with WYSIWYG text, customizable page titles, media, buttons, drag-and-drop organization, starting books, translated editor UI, and experimental 1.20.x generator extensions.",
+    "version": "2.1.0",
+    "description": "Create visual books with WYSIWYG text, custom titles, media, navigation, server-validated player writing, choices, permission procedures and permanent signatures. See the V2.1 compatibility matrix for supported MCreator and generator combinations.",
     "author": "Superbroche"
   }
 }

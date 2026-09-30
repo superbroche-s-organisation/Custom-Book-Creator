@@ -10,12 +10,16 @@ import javax.tools.ToolProvider;
 /** Executes the actual Fabric ledger template with observable join, storage and inventory fixtures. */
 public final class FabricStartingBookTest {
     public static void main(String[] args) throws Exception {
-        for (String version : List.of("1.20", "1.20.1", "1.20.2", "1.20.3", "1.20.4", "1.20.5", "1.20.6")) {
-            verify(version);
+        Path root = Path.of(System.getProperty("custombook.pluginRoot", "src/main/resources"));
+        try (var profiles = Files.list(root)) {
+            for (Path profile : profiles.filter(p -> p.getFileName().toString().startsWith("fabric-")).sorted().toList()) {
+                verify(profile.getFileName().toString().substring(7));
+            }
         }
     }
     private static void verify(String version) throws Exception {
-        int patch = version.equals("1.20") ? 0 : Integer.parseInt(version.substring(5));
+        boolean modern = version.startsWith("26.");
+        int patch = modern ? 6 : version.equals("1.20") ? 0 : Integer.parseInt(version.substring(5));
         boolean components = patch >= 5;
         String lookup = components ? ", net.minecraft.core.HolderLookup.Provider registries" : "";
         Path temp = Files.createTempDirectory("custombook-fabric-starting-test-");
@@ -158,6 +162,44 @@ public final class FabricStartingBookTest {
                         }
                     }
                     """);
+            if (modern) {
+                write(source, "net/minecraft/resources/Identifier.java", "package net.minecraft.resources; public record Identifier(String namespace, String path) { public static Identifier fromNamespaceAndPath(String n, String p) { return new Identifier(n, p); } }");
+                write(source, "com/mojang/serialization/Codec.java", """
+                    package com.mojang.serialization;
+                    import java.util.*;
+                    import java.util.function.Function;
+                    public record Codec<T>(Function<Object,T> decode, Function<T,Object> encode) {
+                        public static final Codec<String> STRING = new Codec<>(v -> (String)v, v -> v);
+                        public Codec<List<T>> listOf() {
+                            return new Codec<>(v -> ((List<?>)v).stream().map(decode).toList(), v -> v.stream().map(encode).toList());
+                        }
+                        public <R> Codec<R> xmap(Function<T,R> from, Function<R,T> to) {
+                            return new Codec<>(v -> from.apply(decode.apply(v)), v -> encode.apply(to.apply(v)));
+                        }
+                    }
+                    """);
+                write(source, "net/minecraft/world/level/saveddata/SavedData.java", "package net.minecraft.world.level.saveddata; public abstract class SavedData { public boolean dirty; public void setDirty() { dirty = true; } }");
+                write(source, "net/minecraft/world/level/saveddata/SavedDataType.java", """
+                    package net.minecraft.world.level.saveddata;
+                    public record SavedDataType<T extends SavedData>(net.minecraft.resources.Identifier id, java.util.function.Supplier<T> create,
+                        com.mojang.serialization.Codec<T> codec, net.minecraft.util.datafix.DataFixTypes type) {}
+                    """);
+                write(source, "net/minecraft/world/level/storage/DimensionDataStorage.java", """
+                    package net.minecraft.world.level.storage;
+                    import net.minecraft.world.level.saveddata.*;
+                    public class DimensionDataStorage {
+                        public SavedData current;
+                        private Object saved;
+                        private com.mojang.serialization.Codec codec;
+                        public <T extends SavedData> T computeIfAbsent(SavedDataType<T> type) {
+                            codec = type.codec();
+                            if (current == null) current = saved == null ? type.create().get() : type.codec().decode().apply(saved);
+                            return (T)current;
+                        }
+                        public void restart() { saved = codec.encode().apply(current); current = null; }
+                    }
+                    """);
+            }
             var compiler = ToolProvider.getSystemJavaCompiler();
             try (var manager = compiler.getStandardFileManager(null, null, StandardCharsets.UTF_8); var paths = Files.walk(source)) {
                 var units = manager.getJavaFileObjectsFromPaths(paths.filter(p -> p.toString().endsWith(".java")).toList());

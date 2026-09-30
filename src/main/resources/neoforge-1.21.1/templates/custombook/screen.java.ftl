@@ -48,7 +48,7 @@ public class ${name}BookScreen extends Screen {
                 <#list page.getBookElements() as element>
                 new VisualElement(
                     "${element.type?j_string}", ${element.x}, ${element.y}, ${element.width}, ${element.height},
-                    String.join("", new String[] {<#list element.getContentChunks() as chunk>"${chunk?j_string}"<#sep>, </#sep></#list>}), "${element.align?j_string}", "${element.mediaName?j_string}",
+                    String.join("", new String[] {<#list element.getScreenContentChunks() as chunk>"${chunk?j_string}"<#sep>, </#sep></#list>}), "${element.align?j_string}", "${element.mediaName?j_string}",
                     new String[] {<#list element.frames as frame>"${frame?j_string}"<#sep>, </#sep></#list>}, ${element.frameDelay},
                     "${element.label?j_string}", "${element.targetCategoryId?j_string}", "${element.targetPageId?j_string}",
                     "${element.buttonStyle?j_string}", "${element.buttonBackgroundColor?j_string}", "${element.buttonBorderColor?j_string}",
@@ -70,8 +70,41 @@ public class ${name}BookScreen extends Screen {
     private int originY = 0;
 
     public ${name}BookScreen() {
-        super(Component.literal("${data.getSafeBookTitle()?j_string}"));
+        this(net.minecraft.world.InteractionHand.MAIN_HAND);
     }
+
+    public ${name}BookScreen(net.minecraft.world.InteractionHand hand) {
+        super(Component.literal("${data.getSafeBookTitle()?j_string}"));
+        <#if data.hasWritingZones()>
+        this.writing = new ${package}.client.${name}BookWritingClient(hand);
+        </#if>
+    }
+
+    <#if data.hasWritingZones()>
+    private final ${package}.client.${name}BookWritingClient writing;
+
+    @Override protected void init() { writing.load(); }
+    @Override public void tick() { writing.tick(); }
+
+    private void renderWritingZone(GuiGraphics graphics, VisualElement element, int x, int y, int w, int h) {
+        fillD(graphics, x, y, x + w, y + h, 0xFFE9DEBF);
+        drawButtonBorder(graphics, x, y, w, h, 0xFF6D5237, 1);
+        enableDesignScissor(graphics, x + 3, y + 3, Math.max(1, w - 6), Math.max(1, h - 6));
+        String text = writing.value(element.content);
+        if (text.isEmpty()) text = writing.writable ? "Click to write: " + element.label : element.label;
+        int cy = y + 4;
+        int wrapWidth = Math.max(1, Math.round(sd(Math.max(1, w - 8)) / crispTextScale(uiScale)));
+        for (var line : font.split(Component.literal(text), wrapWidth)) {
+            if (cy + 9 > y + h) break;
+            StringBuilder plain = new StringBuilder();
+            line.accept((index, style, codePoint) -> { plain.appendCodePoint(codePoint); return true; });
+            drawTextD(graphics, Component.literal(plain.toString()), x + 4, cy, 0xFF38291E);
+            cy += Math.max(10, Math.round(10 * crispTextScale(uiScale) / uiScale));
+        }
+        graphics.disableScissor();
+        addClickRegion(x, y, w, h, "writing", element.content);
+    }
+    </#if>
 
     @Override
     public boolean isPauseScreen() {
@@ -105,6 +138,13 @@ public class ${name}BookScreen extends Screen {
 
         drawCenteredD(graphics, Component.literal("${data.getSafeBookTitle()?j_string}"), startX + SIDEBAR_W / 2, sideY + 16, 0xFFFFE5B8);
         renderCategories(graphics, startX + 13, sideY + 42, SIDEBAR_W - 26);
+        <#if data.hasWritingZones()>
+        String writingStatus = writing.signed ? "Signed: " + writing.author : writing.pending ? "Loading..."
+                : writing.writable && ${package}.book.${name}BookWritingData.ALLOW_SIGNING ? "Sign book..." : "Read only";
+        drawTextD(graphics, Component.literal(writingStatus), startX + 9, sideY + 29, 0xFFFFE5B8);
+        if (writing.writable && ${package}.book.${name}BookWritingData.ALLOW_SIGNING)
+            addClickRegion(startX + 7, sideY + 26, SIDEBAR_W - 14, 13, "sign", "");
+        </#if>
 
         Page page = currentPage();
         if (page == null) {
@@ -237,6 +277,9 @@ public class ${name}BookScreen extends Screen {
         int w = Math.max(1, element.width);
         int h = Math.max(1, element.height);
         switch (element.type) {
+            <#if data.hasWritingZones()>
+            case "INPUT" -> renderWritingZone(graphics, element, x, y, w, h);
+            </#if>
             case "TEXT" -> {
                 enableDesignScissor(graphics, x, y, w, h);
                 renderRichTextBlock(graphics, element.content, x, y, w, h, element.align);
@@ -813,6 +856,10 @@ public class ${name}BookScreen extends Screen {
                 ClickRegion region = clickRegions.get(i);
                 if (!region.contains(mouseX, mouseY)) continue;
                 switch (region.type) {
+                    <#if data.hasWritingZones()>
+                    case "writing" -> Minecraft.getInstance().setScreen(new ${name}BookWritingScreen(this, writing, region.target));
+                    case "sign" -> Minecraft.getInstance().setScreen(new ${name}BookWritingScreen(this, writing, null));
+                    </#if>
                     case "category" -> selectCategoryById(region.target);
                     case "category_list" -> changeCategoryListPage("next".equals(region.target) ? 1 : -1);
                     case "nav" -> advancePage("next".equals(region.target) ? 1 : -1);

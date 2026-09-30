@@ -12,7 +12,7 @@ public final class StartingBookTemplateTest {
         for (String generator : new String[] { "neoforge-1.21.1", "neoforge-26.1.2" }) {
             Path templateDirectory = Path.of("src", "main", "resources", generator, "templates", "custombook");
 
-            Configuration configuration = new Configuration(Configuration.VERSION_2_3_34);
+            Configuration configuration = new Configuration(Configuration.VERSION_2_3_31);
             configuration.setDirectoryForTemplateLoading(templateDirectory.toFile());
             configuration.setDefaultEncoding("UTF-8");
             configuration.setTemplateExceptionHandler(TemplateExceptionHandler.RETHROW_HANDLER);

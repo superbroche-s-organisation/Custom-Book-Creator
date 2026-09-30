@@ -23,7 +23,8 @@ public final class ScreenRuntimeLogicTest {
     private static void verify(String source, String generator) throws Exception {
         String pattern = source.lines().filter(line -> line.contains("private static final Pattern TAG_PATTERN"))
                 .findFirst().orElseThrow();
-        String graphicsType = generator.equals("neoforge-26.1.2") ? "GuiGraphicsExtractor" : "GuiGraphics";
+        String graphicsType = source.contains("import net.minecraft.client.gui.GuiGraphicsExtractor;")
+                ? "GuiGraphicsExtractor" : "GuiGraphics";
         String categories = between(source, "    private void renderCategories(", "    private void renderTitle(")
                 .replace(graphicsType, "Graphics");
         String texture = between(source, "    private static String textureResource(", "    private void renderResourceImage(")

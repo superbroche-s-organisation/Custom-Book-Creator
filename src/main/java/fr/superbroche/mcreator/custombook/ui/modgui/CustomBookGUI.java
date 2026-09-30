@@ -79,6 +79,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
 import javax.swing.JSplitPane;
 import javax.swing.JTextField;
+import javax.swing.JTextArea;
 import javax.swing.JTextPane;
 import javax.swing.JToolBar;
 import javax.swing.JTree;
@@ -97,6 +98,10 @@ import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 import net.mcreator.element.parts.TabEntry;
 import net.mcreator.element.parts.TextureHolder;
+import net.mcreator.blockly.data.Dependency;
+import net.mcreator.ui.procedure.AbstractProcedureSelector;
+import net.mcreator.ui.procedure.LogicProcedureSelector;
+import net.mcreator.ui.procedure.ProcedureSelector;
 import net.mcreator.ui.MCreator;
 import net.mcreator.ui.component.SearchableComboBox;
 import net.mcreator.ui.dialogs.TypedTextureSelectorDialog;
@@ -131,6 +136,15 @@ extends ModElementGUI<CustomBook> {
     private final JComboBox<String> rarity = new JComboBox<String>(new String[]{"COMMON", "UNCOMMON", "RARE", "EPIC"});
     private final JSpinner stackSize = new JSpinner(new SpinnerNumberModel(1, 1, 64, 1));
     private final JSpinner enchantability = new JSpinner(new SpinnerNumberModel(0, 0, 128000, 1));
+    private final JCheckBox allowSigning = new JCheckBox(tr("option.enable"), true);
+    private LogicProcedureSelector writingPermission;
+    private ProcedureSelector onBookSigned;
+    private final JTextField inputLabel = new JTextField(24);
+    private final JTextField inputKey = new JTextField(28);
+    private final JComboBox<String> inputMode = new JComboBox<>(new String[] {"FREE", "PRESET", "BOTH"});
+    private final JSpinner inputMaxLength = new JSpinner(new SpinnerNumberModel(1024, 1, 1024, 1));
+    private final JTextArea inputDefault = new JTextArea(4, 28);
+    private final JTextArea inputChoices = new JTextArea(6, 28);
     private final JCheckBox immuneToFire = new JCheckBox(CustomBookGUI.tr("option.enable"));
     private final JCheckBox piglinCurrency = new JCheckBox(CustomBookGUI.tr("option.enable"));
     private final JCheckBox destroyAnyBlock = new JCheckBox(CustomBookGUI.tr("option.enable"));
@@ -230,6 +244,7 @@ extends ModElementGUI<CustomBook> {
         this.configureCompactPropertyFields();
         this.addPage(CustomBookGUI.tr("page.visuals"), this.createVisualsPage());
         this.addPage(CustomBookGUI.tr("page.properties"), this.createPropertiesPage());
+        this.addPage(tr("page.interaction"), this.createInteractionPage());
         this.addPage(CustomBookGUI.tr("page.book_editor"), this.createEditorPage(), false);
         this.bindLiveSpinner(this.elementX, () -> this.geometryChangedFromEditor(this.elementX, "X"));
         this.bindLiveSpinner(this.elementY, () -> this.geometryChangedFromEditor(this.elementY, "Y"));
@@ -422,6 +437,32 @@ extends ModElementGUI<CustomBook> {
         return jPanel;
     }
 
+    private JComponent createInteractionPage() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBorder(new EmptyBorder(18, 22, 18, 22));
+        Dependency[] dependencies = { new Dependency("entity", "entity"), new Dependency("itemstack", "itemstack"),
+                new Dependency("world", "world"), new Dependency("x", "number"), new Dependency("y", "number"),
+                new Dependency("z", "number") };
+        writingPermission = new LogicProcedureSelector(this, app, tr("field.writing_permission"),
+                AbstractProcedureSelector.Side.SERVER, new JCheckBox(tr("option.enable"), true), 0, dependencies);
+        onBookSigned = new ProcedureSelector(this, app, tr("field.on_book_signed"),
+                AbstractProcedureSelector.Side.SERVER, dependencies);
+        GridBagConstraints c = new GridBagConstraints();
+        c.insets = new Insets(8, 10, 8, 10);
+        c.anchor = GridBagConstraints.WEST;
+        c.fill = GridBagConstraints.HORIZONTAL;
+        addRow(panel, c, 0, tr("field.allow_signing"), allowSigning, null);
+        c.gridx = 0; c.gridy = 1; c.gridwidth = 2;
+        panel.add(writingPermission, c);
+        c.gridy++;
+        panel.add(onBookSigned, c);
+        c.gridy++;
+        panel.add(new JLabel("<html>" + tr("hint.writing") + "</html>"), c);
+        JPanel wrapper = new JPanel(new BorderLayout());
+        wrapper.add(panel, BorderLayout.NORTH);
+        return new JScrollPane(wrapper);
+    }
+
     private JComponent createEditorPage() {
         JPanel jPanel = new JPanel(new BorderLayout(10, 10));
         jPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
@@ -494,6 +535,7 @@ extends ModElementGUI<CustomBook> {
         jPanel.add((Component)jPanel2, "North");
         this.inspectorCards.add((Component)this.createNoSelectionCard(), "NONE");
         this.inspectorCards.add((Component)this.createTextCard(), "TEXT");
+        this.inspectorCards.add(this.createInputCard(), "INPUT");
         this.inspectorCards.add((Component)this.createMediaCard(), "MEDIA");
         this.inspectorCards.add((Component)this.createButtonCard(), "BUTTON");
         this.inspectorCards.add((Component)this.createNavigationCard(), "NAV");
@@ -613,6 +655,9 @@ extends ModElementGUI<CustomBook> {
         jButton7.addActionListener(actionEvent -> this.duplicateActiveElement());
         jButton8.addActionListener(actionEvent -> this.deleteActiveElement());
         jToolBar.add(jButton);
+        JButton input = compactButton(tr("action.add_input"), tr("hint.add_input"));
+        input.addActionListener(event -> addInputElement());
+        jToolBar.add(input);
         jToolBar.add(jButton2);
         jToolBar.add(jButton3);
         jToolBar.add(jButton4);
@@ -630,6 +675,60 @@ extends ModElementGUI<CustomBook> {
         JLabel jLabel = new JLabel(CustomBookGUI.tr("hint.no_selection"), 0);
         jPanel.add((Component)jLabel, "Center");
         return jPanel;
+    }
+
+    private JPanel createInputCard() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints c = new GridBagConstraints();
+        c.insets = new Insets(5, 6, 5, 6);
+        c.anchor = GridBagConstraints.WEST;
+        c.fill = GridBagConstraints.HORIZONTAL;
+        inputKey.setEditable(false);
+        inputDefault.setLineWrap(true);
+        inputDefault.setWrapStyleWord(true);
+        addRow(panel, c, 0, tr("field.input_label"), inputLabel, null);
+        addRow(panel, c, 1, tr("field.input_key"), inputKey, null);
+        addRow(panel, c, 2, tr("field.input_mode"), inputMode, null);
+        addRow(panel, c, 3, tr("field.input_limit"), inputMaxLength, null);
+        addRow(panel, c, 4, tr("field.input_default"), new JScrollPane(inputDefault), null);
+        addRow(panel, c, 5, tr("field.input_choices"), new JScrollPane(inputChoices), null);
+        Runnable update = () -> {
+            if (loadingElement || activeElement == null || !"INPUT".equals(activeElement.type)) return;
+            activeElement.label = inputLabel.getText();
+            activeElement.inputMode = String.valueOf(inputMode.getSelectedItem());
+            activeElement.inputMaxLength = ((Number) inputMaxLength.getValue()).intValue();
+            activeElement.content = inputDefault.getText();
+            activeElement.inputChoices = new ArrayList<>(List.of(inputChoices.getText().split("\\R", -1)));
+            previewCanvas.repaint();
+        };
+        inputLabel.getDocument().addDocumentListener(simpleListener(update));
+        inputDefault.getDocument().addDocumentListener(simpleListener(update));
+        inputChoices.getDocument().addDocumentListener(simpleListener(update));
+        inputMode.addActionListener(event -> update.run());
+        inputMaxLength.addChangeListener(event -> update.run());
+        JPanel card = new JPanel(new BorderLayout());
+        card.add(new JScrollPane(panel), BorderLayout.CENTER);
+        return card;
+    }
+
+    private void addInputElement() {
+        if (activePage == null) return;
+        long count = 0;
+        for (int i = 0; i < rootNode.getChildCount(); i++) {
+            DefaultMutableTreeNode category = (DefaultMutableTreeNode) rootNode.getChildAt(i);
+            for (int j = 0; j < category.getChildCount(); j++) {
+                CustomBook.BookPage page = (CustomBook.BookPage) ((DefaultMutableTreeNode) category.getChildAt(j)).getUserObject();
+                count += page.elements.stream().filter(e -> "INPUT".equals(e.type)).count();
+            }
+        }
+        if (count >= 64) {
+            JOptionPane.showMessageDialog(app, tr("message.input_limit"));
+            return;
+        }
+        CustomBook.BookElement element = CustomBook.BookElement.input();
+        activePage.elements.add(element);
+        selectElement(element);
+        previewCanvas.repaint();
     }
 
     private JPanel createTextCard() {
@@ -1208,6 +1307,16 @@ extends ModElementGUI<CustomBook> {
                 this.elementW.setValue(bookElement.width);
                 this.elementH.setValue(bookElement.height);
                 switch (bookElement.type) {
+                case "INPUT": {
+                    this.inspectorCardLayout.show(this.inspectorCards, "INPUT");
+                    inputLabel.setText(bookElement.label);
+                    inputKey.setText(bookElement.inputKey);
+                    inputMode.setSelectedItem(bookElement.inputMode);
+                    inputMaxLength.setValue(bookElement.inputMaxLength);
+                    inputDefault.setText(bookElement.content);
+                    inputChoices.setText(String.join("\n", bookElement.inputChoices));
+                    break;
+                }
                 case "TEXT": {
                     this.inspectorCardLayout.show(this.inspectorCards, "TEXT");
                     this.textEditor.setDefaultStyle(12, "#241B13");
@@ -1360,6 +1469,7 @@ extends ModElementGUI<CustomBook> {
             return CustomBookGUI.tr("element.text");
         }
         return switch (element.type) {
+            case "INPUT" -> tr("action.add_input") + ": " + element.label;
             case "IMAGE" -> CustomBookGUI.tr("element.image");
             case "GIF" -> CustomBookGUI.tr("element.animated_gif");
             case "BUTTON" -> CustomBookGUI.tr("element.button_named", element.label == null ? CustomBookGUI.tr("default.button") : element.label);
@@ -1390,6 +1500,7 @@ extends ModElementGUI<CustomBook> {
         }
         CustomBook.BookElement bookElement = CustomBookGUI.copyElement(this.activeElement);
         bookElement.id = UUID.randomUUID().toString();
+        if ("INPUT".equals(bookElement.type)) bookElement.inputKey = "";
         bookElement.x = Math.min(256 - bookElement.width, Math.max(0, bookElement.x + 8));
         bookElement.y = Math.min(320 - bookElement.height, Math.max(0, bookElement.y + 8));
         this.activePage.elements.add(bookElement);
@@ -2431,6 +2542,8 @@ extends ModElementGUI<CustomBook> {
 
     public void reloadDataLists() {
         this.reloadModelChoices();
+        if (writingPermission != null) writingPermission.refreshListKeepSelected(AbstractProcedureSelector.ReloadContext.create(app.getWorkspace()));
+        if (onBookSigned != null) onBookSigned.refreshListKeepSelected(AbstractProcedureSelector.ReloadContext.create(app.getWorkspace()));
     }
 
     public void openInEditingMode(CustomBook customBook) {
@@ -2447,6 +2560,9 @@ extends ModElementGUI<CustomBook> {
         this.destroyAnyBlock.setSelected(customBook.destroyAnyBlock);
         this.startingBook.setSelected(customBook.startingBook);
         this.hideNextArrowAtCategoryEnd.setSelected(customBook.hideNextArrowAtCategoryEnd);
+        if (allowSigning != null) allowSigning.setSelected(customBook.allowSigning);
+        if (writingPermission != null) writingPermission.setSelectedProcedure(customBook.writingPermission);
+        if (onBookSigned != null) onBookSigned.setSelectedProcedure(customBook.onBookSigned);
         this.glow.setSelected(customBook.glow);
         ArrayList<TabEntry> arrayList2 = arrayList = customBook.creativeTabs == null ? new ArrayList<TabEntry>() : new ArrayList<TabEntry>(customBook.creativeTabs);
         arrayList.removeIf(tabEntry -> tabEntry == null);
@@ -2552,6 +2668,10 @@ extends ModElementGUI<CustomBook> {
         bookElement2.buttonImageMode = bookElement.buttonImageMode;
         bookElement2.resizeBySides = bookElement.resizeBySides;
         bookElement2.resizeByCorners = bookElement.resizeByCorners;
+        bookElement2.inputKey = bookElement.inputKey;
+        bookElement2.inputMode = bookElement.inputMode;
+        bookElement2.inputMaxLength = bookElement.inputMaxLength;
+        bookElement2.inputChoices = bookElement.inputChoices == null ? new ArrayList<>() : new ArrayList<>(bookElement.inputChoices);
         bookElement2.normalize();
         return bookElement2;
     }
@@ -2573,6 +2693,9 @@ extends ModElementGUI<CustomBook> {
         customBook.destroyAnyBlock = this.destroyAnyBlock.isSelected();
         customBook.startingBook = this.startingBook.isSelected();
         customBook.hideNextArrowAtCategoryEnd = this.hideNextArrowAtCategoryEnd.isSelected();
+        customBook.allowSigning = this.allowSigning == null || this.allowSigning.isSelected();
+        if (writingPermission != null) customBook.writingPermission = writingPermission.getSelectedProcedure();
+        if (onBookSigned != null) customBook.onBookSigned = onBookSigned.getSelectedProcedure();
         customBook.glow = this.glow.isSelected();
         customBook.itemTexture = "";
         try {
@@ -2678,6 +2801,7 @@ extends ModElementGUI<CustomBook> {
             customBook.creativeTabs.add(new TabEntry(this.modElement.getWorkspace(), "TOOLS"));
         }
         customBook.creativeTab = "TOOLS";
+        customBook.getWritingZones();
         return customBook;
     }
 
@@ -3312,6 +3436,16 @@ extends ModElementGUI<CustomBook> {
             Shape shape = graphics2D.getClip();
             graphics2D.clipRect(bookElement.x, bookElement.y, bookElement.width, bookElement.height);
             switch (bookElement.type) {
+                case "INPUT": {
+                    graphics2D.setColor(new Color(0xE9DEBF));
+                    graphics2D.fillRect(bookElement.x, bookElement.y, bookElement.width, bookElement.height);
+                    graphics2D.setColor(new Color(0x6D5237));
+                    graphics2D.drawRect(bookElement.x, bookElement.y, bookElement.width - 1, bookElement.height - 1);
+                    graphics2D.drawString(bookElement.label, bookElement.x + 5, bookElement.y + 15);
+                    graphics2D.drawString(bookElement.content.isBlank() ? tr("hint.input_preview") : bookElement.content,
+                            bookElement.x + 5, bookElement.y + 32);
+                    break;
+                }
                 case "TEXT": {
                     this.paintTextElement(graphics2D, bookElement);
                     break;

@@ -14,6 +14,8 @@ import java.util.UUID;
 import net.mcreator.element.GeneratableElement;
 import net.mcreator.element.parts.TabEntry;
 import net.mcreator.element.parts.TextureHolder;
+import net.mcreator.element.parts.procedure.LogicProcedure;
+import net.mcreator.element.parts.procedure.Procedure;
 import net.mcreator.element.types.interfaces.IItem;
 import net.mcreator.element.types.interfaces.IItemWithModel;
 import net.mcreator.element.types.interfaces.IItemWithTexture;
@@ -49,6 +51,9 @@ IItemWithTexture {
     public boolean destroyAnyBlock = false;
     public boolean startingBook = false;
     public boolean hideNextArrowAtCategoryEnd = false;
+    public boolean allowSigning = true;
+    public LogicProcedure writingPermission = new LogicProcedure(null, true);
+    public Procedure onBookSigned;
     public int renderType = 0;
     public String customModelName = "Normal";
     @TextureReference(value=TextureType.ITEM)
@@ -223,7 +228,34 @@ IItemWithTexture {
     }
 
     public int getSafeStackSize() {
+        if (hasWritingZones()) return 1;
         return Math.max(1, Math.min(64, this.stackSize));
+    }
+
+    public boolean hasWritingZones() {
+        return !getWritingZones().isEmpty();
+    }
+
+    /** Keys are stable across reordering and are also exposed as item custom-data keys. */
+    public List<BookElement> getWritingZones() {
+        List<BookElement> zones = new ArrayList<>();
+        Set<String> keys = new HashSet<>();
+        for (BookCategory category : getBookCategories()) {
+            for (BookPage page : category.pages) {
+                for (BookElement element : page.elements) {
+                    if (!"INPUT".equals(element.type)) continue;
+                    String base = element.inputKey;
+                    int suffix = 2;
+                    while (!keys.add(element.inputKey)) {
+                        element.inputKey = limit(base, 25) + "_" + suffix++;
+                    }
+                    zones.add(element);
+                    if (zones.size() > 64)
+                        throw new IllegalStateException("A book can contain at most 64 writing zones. Remove extra zones before saving.");
+                }
+            }
+        }
+        return zones;
     }
 
     public int getSafeEnchantability() {
@@ -585,6 +617,23 @@ IItemWithTexture {
         public String buttonImageMode = "NONE";
         public boolean resizeBySides = true;
         public boolean resizeByCorners = true;
+        public String inputKey = "";
+        public String inputMode = "BOTH";
+        public int inputMaxLength = 1024;
+        public List<String> inputChoices = new ArrayList<>();
+
+        public List<String> getScreenContentChunks() {
+            return "INPUT".equals(type) ? List.of(inputKey) : getContentChunks();
+        }
+
+        public static BookElement input() {
+            BookElement element = new BookElement();
+            element.type = "INPUT";
+            element.label = "Your text";
+            element.height = 96;
+            element.normalize();
+            return element;
+        }
 
         public static BookElement text(String string) {
             BookElement bookElement = new BookElement();
@@ -652,7 +701,7 @@ IItemWithTexture {
                 this.id = UUID.randomUUID().toString();
             }
             if (this.type == null || !(this.type.equals("TEXT") || this.type.equals("IMAGE")
-                    || this.type.equals("GIF") || this.type.equals("BUTTON")
+                    || this.type.equals("GIF") || this.type.equals("BUTTON") || this.type.equals("INPUT")
                     || this.type.equals("NAV_PREV") || this.type.equals("NAV_NEXT"))) {
                 this.type = "TEXT";
             }
@@ -660,6 +709,21 @@ IItemWithTexture {
                 this.content = "";
             }
             this.content = CustomBook.limit(this.content, MAX_TEXT_LENGTH);
+            if (inputKey == null || !inputKey.matches("[a-z][a-z0-9_]{0,31}")) {
+                inputKey = "field_" + UUID.nameUUIDFromBytes(
+                        String.valueOf(id).getBytes(java.nio.charset.StandardCharsets.UTF_8))
+                        .toString().replace("-", "").substring(0, 16);
+            }
+            if (!"FREE".equals(inputMode) && !"PRESET".equals(inputMode) && !"BOTH".equals(inputMode)) inputMode = "BOTH";
+            inputMaxLength = Math.max(1, Math.min(1024, inputMaxLength));
+            if (inputChoices == null) inputChoices = new ArrayList<>();
+            inputChoices = inputChoices.stream().filter(java.util.Objects::nonNull)
+                    .map(s -> CustomBook.limit(s.replace("\r", ""), inputMaxLength))
+                    .filter(s -> !s.isBlank()).distinct().limit(16).collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+            if ("INPUT".equals(type)) {
+                content = CustomBook.limit(content.replace("\r", ""), inputMaxLength);
+                if ("PRESET".equals(inputMode) && !content.isEmpty() && !inputChoices.contains(content)) content = "";
+            }
             if (this.align == null || !this.align.equals("LEFT") && !this.align.equals("CENTER") && !this.align.equals("RIGHT")) {
                 this.align = "LEFT";
             }
@@ -729,6 +793,7 @@ IItemWithTexture {
                 case "IMAGE" -> "Image";
                 case "GIF" -> "GIF";
                 case "BUTTON" -> "Button: " + this.label;
+                case "INPUT" -> "Writing zone: " + this.label;
                 case "NAV_PREV" -> "Arrow: previous page";
                 case "NAV_NEXT" -> "Arrow: next page";
                 default -> "Text";
