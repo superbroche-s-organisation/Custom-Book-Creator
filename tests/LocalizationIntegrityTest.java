@@ -46,6 +46,15 @@ public final class LocalizationIntegrityTest {
         require(localeDirectories.size() == 30, "expected 30 help locales, found " + localeDirectories.size());
         Set<String> expectedHelpFiles = relativeFiles(helpRoot.resolve("default"));
         require(expectedHelpFiles.size() == 17, "default help tree must contain 17 files");
+        String gui = Files.readString(Path.of("src/main/java/fr/superbroche/mcreator/custombook/ui/modgui/CustomBookGUI.java"));
+        Matcher help = Pattern.compile("addRow[^\\n]+tr\\(\"field\\.input_(?:key|mode|default|choices)\"\\)[^\\n]+, \"([^\"]+)\"\\)").matcher(gui);
+        int writingHelp = 0;
+        while (help.find()) {
+            require(Files.isRegularFile(helpRoot.resolve("default").resolve(help.group(1) + ".md")),
+                    "GUI help points to a missing resource: " + help.group(1));
+            writingHelp++;
+        }
+        require(writingHelp == 4, "Writing help bindings are incomplete");
         for (Path localeDirectory : localeDirectories) {
             require(relativeFiles(localeDirectory).equals(expectedHelpFiles),
                     localeDirectory.getFileName() + " help tree is incomplete");

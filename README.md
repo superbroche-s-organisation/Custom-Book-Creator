@@ -4,7 +4,7 @@ Source code for **Custom Book Creator**, with separate plugin packages for **MCr
 
 Author: **Superbroche**.
 
-The current development snapshot is **2.2.0-test.1**. It adds page audio, general book-editor undo/redo, the keyboard Delete shortcut, inline player writing, a bottom-sidebar signing action and book-content translations. The MCreator 2024.4 package now covers **Forge 1.20.1 and NeoForge 1.21.1**. See the [development patch notes](docs/2.2.0-test.1/PATCH_NOTES.md), [usage guide](docs/2.2.0-test.1/GUIDE.md) and [validation record](docs/2.2.0-test.1/VALIDATION.md). This snapshot has no GitHub release; the public release below is still V2.1.0.
+The current development snapshot is **2.2.0-test.2**. It adds a **Sound/music page element**, white translation-editor text, working writing help, a scrollable category dropdown, centered signing and writing controls below the page. It also includes the previous snapshot's general Undo/Redo, Delete shortcut, inline player writing and book-content translations. The MCreator 2024.4 package covers **Forge 1.20.1 and NeoForge 1.21.1**. See the [patch notes](docs/2.2.0-test.2/PATCH_NOTES.md), [usage guide](docs/2.2.0-test.2/GUIDE.md) and [validation record](docs/2.2.0-test.2/VALIDATION.md). This snapshot has no GitHub release; the public release below is still V2.1.0.
 
 **V2.1** adds player-writable zones, preset choices, server-side writing permissions and permanent signatures to the visual book editor. V2's rich-text editor, independent paragraph alignment, page-title styling, media, drag-and-drop organization and starting books remain available.
 
@@ -42,7 +42,7 @@ The script compiles against the selected MCreator installation and creates the i
 
 This rebuilds the plugin and runs the applicable Java regression tests. The optional output directory retains representative generated sources for compilation against Minecraft and loader APIs. Use `test-mcreator2022.ps1` for the legacy package. See the [validation report](docs/2.1.0/VALIDATION.md) for exact commands and remaining manual checks.
 
-The development snapshot passes 24 automated programs on 2026.2 and 23 applicable programs on 2024.4, including Swing editor/drag tests, generated interaction tests and 73 writing protocol/client checks. Real generated-code compilation is recorded separately for each packaged profile. No interactive gameplay or dedicated-server launch test is claimed.
+The development snapshot passes 26 distinct automated programs on 2026.2 and 25 applicable programs on 2024.4, including Swing editor/drag tests, generated interaction and scaled-border tests, and 73 writing protocol/client checks. Real generated-code compilation is recorded separately for each packaged profile. No interactive gameplay or dedicated-server launch test is claimed.
 
 ## Installation and upgrade
 
@@ -50,11 +50,13 @@ Back up the workspace and close MCreator before replacing the old plugin ZIP. Ke
 
 Install only the `CustomBookCreator-MCreator<your-version>-v<version>.zip` matching your installation. Restart MCreator, regenerate the workspace code and build it. A **sources ZIP or MCreator upload kit is not a plugin** and must never be placed in a `plugins` directory. MCreator attempts to load every ZIP there and can report `plugin is null` for a source archive.
 
+**After replacing a plugin ZIP, use MCreator's Regenerate code action.** Existing books keep their previously generated Java until regeneration; replacing the ZIP alone cannot update their in-game keyboard handling or interface. Regeneration applies the new behavior to old books as well.
+
 ## Localization
 
 English is the source language. The editor keeps its 30 MCreator locale catalogs. New controls/help have English fallbacks, with French translations supplied. In-game writing controls are in English.
 
-Use **Translations** above the book preview to translate authored book titles, categories, page titles, body text, button labels and writing-zone labels. These entries use MCreator's normal Localization resources and follow the player's Minecraft language, with the original text as fallback. See the [translation guide](docs/2.2.0-test.1/GUIDE.md#book-content-translations) for the scope and stable keys.
+Use **Translations** above the book preview to translate authored book titles, categories, page titles, body text, button/sound labels and writing-zone labels. These entries use MCreator's normal Localization resources and follow the player's Minecraft language, with the original text as fallback. The translation editor displays white text while preserving saved color tags. See the [translation guide](docs/2.2.0-test.2/GUIDE.md#book-content-translations) for the scope and stable keys.
 
 ## Starting books
 
@@ -68,7 +70,7 @@ Version 1.1 makes the grant server-only, uses the correct persistent-data API fo
 - Drag pages to reorder them or move them to another category.
 - Page and category identifiers stay stable, so existing internal page buttons continue to target the same page after a move.
 - Enable **Stop on the last page of each category** in Properties to hide and disable the right arrow on a category's final page. Leave it disabled to continue directly to the next category.
-- Books with more than eleven categories now have sidebar pagination, so every category remains reachable in game.
+- Use the category dropdown and scroll its list to reach every category. The old sidebar page counter/arrows are removed. Signing is centered at the bottom; writing controls appear below the right-hand page.
 
 ## Compatibility fixes
 

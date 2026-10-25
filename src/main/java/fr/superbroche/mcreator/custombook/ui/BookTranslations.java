@@ -18,7 +18,7 @@ public final class BookTranslations {
                 entries.put(prefix + "page." + page.id, page.getTitleContent());
                 for (var element : page.getBookElements()) {
                     if ("TEXT".equals(element.type)) entries.put(prefix + "element." + element.id, element.content);
-                    if ("BUTTON".equals(element.type) || "INPUT".equals(element.type))
+                    if ("BUTTON".equals(element.type) || "INPUT".equals(element.type) || "SOUND".equals(element.type))
                         entries.put(prefix + "element." + element.id, element.label);
                 }
             }
@@ -58,8 +58,8 @@ public final class BookTranslations {
                 return super.getListCellRendererComponent(owner, plain.isBlank() ? "(empty text)" : plain, index, selected, focused);
             }
         });
-        VisualRichTextEditor editor = new VisualRichTextEditor();
-        VisualRichTextEditor original = new VisualRichTextEditor();
+        VisualRichTextEditor editor = translationEditor();
+        VisualRichTextEditor original = translationEditor();
         original.setEditable(false);
         JTextField keyField = new JTextField();
         keyField.setEditable(false);
@@ -132,5 +132,13 @@ public final class BookTranslations {
             workspace.updateLanguage(entry.getKey(), values);
         }
         workspace.markDirty();
+    }
+
+    private static VisualRichTextEditor translationEditor() {
+        VisualRichTextEditor editor = new VisualRichTextEditor();
+        editor.setDefaultStyle(12, Color.WHITE);
+        editor.setDisplayColor(Color.WHITE);
+        editor.setBackground(new Color(0x2B2B2B));
+        return editor;
     }
 }

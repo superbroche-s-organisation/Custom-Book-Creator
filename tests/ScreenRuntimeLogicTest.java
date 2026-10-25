@@ -27,7 +27,9 @@ public final class ScreenRuntimeLogicTest {
         String graphicsType = source.contains("import net.minecraft.client.gui.GuiGraphicsExtractor;")
                 ? "GuiGraphicsExtractor" : "GuiGraphics";
         String categories = between(source, "    private void renderCategories(", "    private void renderTitle(")
-                .replace(graphicsType, "Graphics");
+                .replace(graphicsType, "Graphics")
+                .replace("mouseScrolled(double mouseX, double mouseY, double deltaY)", "mouseScrolled(double mouseX, double mouseY, double deltaX, double deltaY)")
+                .replace("super.mouseScrolled(mouseX, mouseY, deltaY)", "super.mouseScrolled(mouseX, mouseY, deltaX, deltaY)");
         String texture = between(source, "    private static String textureResource(", "    private void renderResourceImage(")
                 .replace("${modid}", "audit_mod");
         String navigationCheck = between(source, "    private boolean canAdvance(", "    private void renderRichTextBlock(");
@@ -42,15 +44,23 @@ public final class ScreenRuntimeLogicTest {
         String fixture = """
                 import java.util.*;
                 import java.util.regex.*;
-                public class ScreenLogicFixture {
+                class ScreenParent {
+                    public boolean mouseScrolled(double x, double y, double dx, double dy) { return false; }
+                    public boolean mouseScrolled(double x, double y, double dy) { return false; }
+                }
+                public class ScreenLogicFixture extends ScreenParent {
                     private static final int DEFAULT_SIZE = 12;
-                    private static final int CATEGORY_ROWS = 11;
+                    private static final int CATEGORY_ROWS = 10, PAD = 5, SIDEBAR_W = 140;
                     private static Category[] CATEGORIES;
                     private static boolean HIDE_NEXT_ARROW_AT_CATEGORY_END;
-                    private int categoryIndex, pageIndex, categoryListPage;
+                    private int categoryIndex, pageIndex, categoryMenuScroll;
+                    private boolean categoryMenuOpen;
                     private float uiScale = 1f;
                     private final List<ClickRegion> clickRegions = new ArrayList<>();
-                    private static final class Graphics {}
+                    private static final class Graphics { void disableScissor() {} }
+                    private int sx(int n) { return n; }
+                    private int sy(int n) { return n; }
+                    private void enableDesignScissor(Graphics g, int x, int y, int w, int h) {}
                     private record Component(String text) {
                         static Component literal(String text) { return new Component(text); }
                         static Component empty() { return literal(""); }
@@ -126,20 +136,24 @@ public final class ScreenRuntimeLogicTest {
                         CATEGORIES = new Category[25];
                         for (int i = 0; i < CATEGORIES.length; i++) CATEGORIES[i] = category("c" + i, "p" + i);
                         screen.renderCategories(new Graphics(), 13, 47, 114);
-                        check(screen.clickable("category", "c10") && !screen.clickable("category", "c11"), "First category page bounds");
-                        check(screen.clickable("category_list", "next"), "Missing next category-list control");
-                        screen.changeCategoryListPage(1);
+                        check(screen.clickable("category_menu", "") && !screen.clickable("category", "c0"), "Closed dropdown exposes entries");
+                        check(!screen.clickable("category_list", "next"), "Old pagination remains");
+                        screen.categoryMenuOpen = true;
                         screen.clickRegions.clear();
                         screen.renderCategories(new Graphics(), 13, 47, 114);
-                        check(screen.clickable("category", "c11") && screen.clickable("category", "c21"), "Middle categories inaccessible");
-                        screen.changeCategoryListPage(1);
+                        check(screen.clickable("category", "c0") && screen.clickable("category", "c9") && !screen.clickable("category", "c10"), "Dropdown viewport bounds");
+                        screen.mouseScrolled(20, 100, 0, -1);
+                        check(screen.categoryMenuScroll == 1, "Dropdown wheel scroll failed");
+                        screen.scrollCategories(1000);
                         screen.clickRegions.clear();
                         screen.renderCategories(new Graphics(), 13, 47, 114);
-                        check(screen.clickable("category", "c24") && !screen.clickable("category_list", "next"), "Last categories inaccessible");
+                        check(screen.categoryMenuScroll == 15 && screen.clickable("category", "c24"), "Last categories inaccessible");
                         screen.selectCategoryById("c0");
-                        check(screen.categoryListPage == 0, "Selected category not revealed");
+                        check(screen.categoryMenuScroll == 0 && !screen.categoryMenuOpen, "Selected category not revealed/menu not closed");
                         screen.selectPageById("p24");
-                        check(screen.categoryListPage == 2 && screen.categoryIndex == 24, "Linked category not revealed");
+                        check(screen.categoryMenuScroll == 15 && screen.categoryIndex == 24, "Linked category not revealed");
+                        screen.categoryMenuOpen = true;
+                        check(screen.closeCategoryMenuOnEscape(256) && !screen.categoryMenuOpen, "Escape did not close dropdown");
 
                         CATEGORIES = new Category[] { category("a", "a1", "a2"), category("empty"), category("b", "b1") };
                         screen.categoryIndex = 0;

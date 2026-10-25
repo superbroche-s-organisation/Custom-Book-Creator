@@ -56,6 +56,7 @@ public final class VisualRichTextEditor extends JTextPane {
     private boolean changed;
     private int defaultSize = 12;
     private Color defaultColor = new Color(0x241B13);
+    private Color displayColor;
     private String defaultAlignment = "LEFT";
     private Runnable onChange = () -> {};
     private int typingStylePosition = -1;
@@ -95,6 +96,27 @@ public final class VisualRichTextEditor extends JTextPane {
     }
 
     public void setOnChange(Runnable action) { onChange = action == null ? () -> {} : action; }
+
+    /** View-only color override; original color tags remain in the stored document styles. */
+    public void setDisplayColor(Color color) {
+        displayColor = color;
+        if (color != null) {
+            setForeground(color); setCaretColor(color); setSelectedTextColor(color); setDisabledTextColor(color);
+        }
+        boolean previous = silent;
+        silent = true;
+        try {
+            StyledDocument document = getStyledDocument();
+            for (int start = 0; start < document.getLength();) {
+                Element run = document.getCharacterElement(start);
+                int end = Math.min(document.getLength(), run.getEndOffset());
+                document.setCharacterAttributes(start, end - start, attributes(styles(run.getAttributes())), true);
+                start = end;
+            }
+            getInputAttributes().addAttributes(attributes(styles(getInputAttributes())));
+        } finally { silent = previous; }
+        repaint();
+    }
 
     /** Sets defaults for the next document loaded by setMarkup; does not modify the current document. */
     public void setDefaultStyle(int size, Color color) {
@@ -301,12 +323,12 @@ public final class VisualRichTextEditor extends JTextPane {
         try { size = Integer.parseInt(styles.getOrDefault("size", Integer.toString(defaultSize))); }
         catch (NumberFormatException ignored) { }
         StyleConstants.setFontSize(result, size);
-        StyleConstants.setForeground(result, decodeColor(styles.get("color"), defaultColor));
+        StyleConstants.setForeground(result, displayColor == null ? decodeColor(styles.get("color"), defaultColor) : displayColor);
         StyleConstants.setBold(result, styles.containsKey("b"));
         StyleConstants.setItalic(result, styles.containsKey("i"));
         StyleConstants.setUnderline(result, styles.containsKey("u") || styles.containsKey("url") || styles.containsKey("page"));
         StyleConstants.setStrikeThrough(result, styles.containsKey("s"));
-        if (styles.containsKey("obf")) StyleConstants.setBackground(result, new Color(0xDDDDDD));
+        if (styles.containsKey("obf")) StyleConstants.setBackground(result, new Color(displayColor == null ? 0xDDDDDD : 0x555555));
         return result;
     }
 

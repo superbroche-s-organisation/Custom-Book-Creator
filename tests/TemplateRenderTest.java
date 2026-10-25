@@ -126,6 +126,8 @@ public final class TemplateRenderTest {
         for (String file : List.of("item.java.ftl", "screen.java.ftl", "client_events.java.ftl")) {
             String readonly = render(configuration, file, model);
             require(!readonly.contains("BookWriting"), generator + ": read-only book references optional writing code");
+            require(!file.equals("screen.java.ftl") || (readonly.contains("keyInventory.matches(") && readonly.contains("public boolean keyPressed(")),
+                    generator + ": old read-only books do not receive inventory-key closing after regeneration");
         }
         System.out.println("TEMPLATE_RENDER_OK " + generator);
     }

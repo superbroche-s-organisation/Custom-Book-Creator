@@ -30,43 +30,48 @@ public final class PageSoundTest {
     }
     private static void modelAndEditor() throws Exception {
         CustomBook book = new CustomBook(null);
-        check(!book.hasPageSounds(), "Old books must remain silent");
-        var first = book.getBookCategories().get(0).pages.get(0);
-        for (String bad : new String[]{"", "../file", "https://example.com", "bad sound", "Bad", "quote\""}) {
-            first.pageSound = bad;
-            check(first.getPageSound().isEmpty(), "Invalid sound accepted: " + bad);
+        check(!book.hasPageSounds(), "Old silent book changed");
+        var page = book.getBookCategories().get(0).pages.get(0);
+        page.pageSound = "chapter.intro"; page.pageSoundTrigger = "BUTTON";
+        check(book.hasPageSounds(), "Legacy sound not detected/migrated");
+        var first = page.getBookElements().stream().filter(e -> "SOUND".equals(e.type)).findFirst().orElseThrow();
+        check(page.pageSound.isEmpty() && first.getSoundTrigger().equals("BUTTON"), "Migration lost mode or did not clear legacy setting");
+        for (int i = 0; i < 4; i++) page.normalizeElements();
+        check(page.elements.stream().filter(e -> "SOUND".equals(e.type)).count() == 1, "Migration duplicated a sound");
+        for (String bad : List.of("../file", "https://example.com", "Bad", "bad sound")) {
+            var invalid = CustomBook.BookElement.sound(bad, "BAD");
+            check(invalid.getSoundName().isEmpty() && invalid.getSoundTrigger().equals("OPEN"), "Invalid sound accepted");
         }
-        first.pageSound = "chapter.intro";
-        check(book.hasPageSounds(), "Sound not detected");
         Field unsafe = sun.misc.Unsafe.class.getDeclaredField("theUnsafe"); unsafe.setAccessible(true);
-        CustomBookGUI gui = (CustomBookGUI)((sun.misc.Unsafe)unsafe.get(null)).allocateInstance(CustomBookGUI.class);
+        var gui = (CustomBookGUI)((sun.misc.Unsafe)unsafe.get(null)).allocateInstance(CustomBookGUI.class);
         JComboBox<String> sound = new JComboBox<>(), trigger = new JComboBox<>(new String[]{"Open", "Button"});
-        set(gui, "pageSound", sound); set(gui, "pageSoundTrigger", trigger); set(gui, "activePage", first);
-        call(gui, "createPageSoundPanel");
-        check(sound.getSelectedItem().equals("chapter.intro"), "Existing sound reference lost");
-        trigger.setSelectedIndex(1);
-        check(first.getPageSoundTrigger().equals("BUTTON"), "Button mode not saved");
-        var second = new CustomBook.BookPage("Second", "");
-        set(gui, "activePage", second); call(gui, "refreshPageSoundChoices");
-        sound.addItem("chapter.second"); sound.setSelectedItem("chapter.second");
-        check(second.pageSound.equals("chapter.second") && second.getPageSoundTrigger().equals("OPEN"), "New page controls");
-        check(first.pageSound.equals("chapter.intro") && first.getPageSoundTrigger().equals("BUTTON"), "Page settings leaked");
-        set(gui, "activePage", first); call(gui, "refreshPageSoundChoices");
-        check(trigger.getSelectedIndex() == 1, "Trigger not restored on page switch");
-        Method copy = CustomBookGUI.class.getDeclaredMethod("copyCategory", CustomBook.BookCategory.class); copy.setAccessible(true);
-        var category = (CustomBook.BookCategory)copy.invoke(null, book.getBookCategories().get(0));
-        var reloaded = new Gson().fromJson(new Gson().toJson(category), CustomBook.BookCategory.class).pages.get(0);
-        check(reloaded.pageSound.equals("chapter.intro") && reloaded.getPageSoundTrigger().equals("BUTTON"), "Copy/reload lost sound");
-        sound.setSelectedItem("");
-        check(first.pageSound.isEmpty() && !trigger.isEnabled(), "No sound not applied");
-        check(!reloaded.pageSound.isEmpty(), "Copy aliases original");
-        set(gui, "activePage", null); call(gui, "refreshPageSoundChoices");
-        check(!sound.isEnabled() && !trigger.isEnabled(), "Category selection leaves sound controls enabled");
+        set(gui,"pageSound",sound); set(gui,"pageSoundTrigger",trigger); set(gui,"soundLabel",new JTextField());
+        set(gui,"activePage",page); set(gui,"activeElement",first);
+        var canvasType = Class.forName(CustomBookGUI.class.getName()+"$PagePreviewCanvas");
+        var constructor = canvasType.getDeclaredConstructor(CustomBookGUI.class); constructor.setAccessible(true);
+        set(gui,"previewCanvas",constructor.newInstance(gui));
+        call(gui,"createSoundCard");
+        check(sound.getSelectedItem().equals("chapter.intro") && trigger.getSelectedIndex()==1, "Inspector lost old sound");
+        trigger.setSelectedIndex(0); check(first.getSoundTrigger().equals("OPEN"), "Mode change not saved");
+        var second = CustomBook.BookElement.sound("chapter.second","BUTTON"); page.elements.add(second);
+        set(gui,"activeElement",second); call(gui,"refreshPageSoundChoices");
+        check(sound.getSelectedItem().equals("chapter.second") && trigger.getSelectedIndex()==1, "Element selection not restored");
+        sound.addItem("chapter.changed"); sound.setSelectedItem("chapter.changed");
+        check(second.mediaName.equals("chapter.changed") && first.mediaName.equals("chapter.intro"), "Sound settings leak between elements");
+        Method copy = CustomBookGUI.class.getDeclaredMethod("copyCategory",CustomBook.BookCategory.class); copy.setAccessible(true);
+        var category = (CustomBook.BookCategory)copy.invoke(null,book.getBookCategories().get(0));
+        var restored = new Gson().fromJson(new Gson().toJson(category),CustomBook.BookCategory.class);
+        var reloaded = restored.pages.get(0).getBookElements().stream().filter(e -> e.id.equals(second.id)).findFirst().orElseThrow();
+        check(reloaded.mediaName.equals("chapter.changed") && reloaded.getSoundTrigger().equals("BUTTON"), "Copy/reload lost sound");
+        sound.setSelectedItem(""); check(second.getSoundName().isEmpty() && !reloaded.getSoundName().isEmpty(), "Independent no-sound failed");
+        set(gui,"activeElement",null); call(gui,"refreshPageSoundChoices"); check(!sound.isEnabled(), "No selection leaves inspector enabled");
     }
     private static void runtime(Path template) throws Exception {
         String source = Files.readString(template);
         int start = source.indexOf("    private Page soundPage;");
-        String methods = source.substring(start, source.indexOf("    </#if>", start));
+                String methods = source.substring(start, source.indexOf("    private void renderSoundElement", start));
+        int removed = source.indexOf("    @Override public void removed()", start);
+        methods += source.substring(removed, source.indexOf("    </#if>", removed));
         methods = methods.replace("net.minecraft.client.resources.sounds.", "")
                 .replace("net.minecraft.sounds.SoundSource.MUSIC", "\"MUSIC\"")
                 .replace("net.minecraft.util.RandomSource.create()", "new Object()")
@@ -75,7 +80,8 @@ public final class PageSoundTest {
             import java.util.*;
             class Parent { public void removed() {} }
             public class AudioFixture extends Parent {
-                record Page(String sound, String soundTrigger) {}
+                record Page(VisualElement[] elements) {}
+                record VisualElement(String type, String mediaName, String soundTrigger, String translationKey) {}
                 interface SoundInstance { enum Attenuation { NONE } }
                 record ResourceLocation(String namespace, String name) {
                     static ResourceLocation fromNamespaceAndPath(String n, String p) { return new ResourceLocation(n,p); }
@@ -100,26 +106,24 @@ public final class PageSoundTest {
                 public static void run() {
                     AudioFixture screen = new AudioFixture();
                     Manager manager = screen.minecraft.manager;
-                    SoundInstance unrelated = new SimpleSoundInstance();
-                    manager.active.add(unrelated);
-                    screen.page = new Page("", "OPEN"); screen.updatePageSound();
-                    check(manager.plays == 0, "Silent page played");
-                    screen.page = new Page("intro", "OPEN"); screen.updatePageSound();
-                    for (int i=0;i<100;i++) screen.updatePageSound();
-                    check(manager.plays == 1 && manager.stops == 0, "Rendering/resizing retriggers sound");
-                    screen.page = new Page("manual", "BUTTON"); screen.updatePageSound();
-                    check(manager.plays == 1 && manager.stops == 1, "Button mode autoplays or old track leaks");
-                    screen.togglePageSound(); check(manager.plays == 2, "Button does not play");
-                    screen.togglePageSound(); check(manager.stops == 2, "Button does not stop");
-                    screen.togglePageSound(); manager.active.remove(screen.pageSoundInstance);
-                    screen.updatePageSound(); check(manager.plays == 3, "Finished track restarts itself");
-                    screen.togglePageSound(); check(manager.plays == 4, "Finished track cannot replay");
-                    screen.page = new Page("intro", "OPEN"); screen.updatePageSound();
-                    check(manager.plays == 5, "New page did not start");
-                    screen.removed(); check(manager.active.equals(Set.of(unrelated)), "Close leaked audio or stopped other sounds");
-                    screen.updatePageSound(); check(manager.plays == 6, "Reopening did not reset playback");
-                    screen.page = null; screen.updatePageSound();
-                    check(manager.active.equals(Set.of(unrelated)), "Empty category leaked audio");
+                    SoundInstance unrelated = new SimpleSoundInstance(); manager.active.add(unrelated);
+                    var auto = new VisualElement("SOUND","intro","OPEN","a");
+                    var auto2 = new VisualElement("SOUND","ambient","OPEN","a2");
+                    var button = new VisualElement("SOUND","manual","BUTTON","b");
+                    var button2 = new VisualElement("SOUND","manual2","BUTTON","b2");
+                    screen.page = new Page(new VisualElement[]{auto,auto2,button,button2}); screen.updatePageSound();
+                    for(int i=0;i<100;i++)screen.updatePageSound();
+                    check(manager.plays==2 && manager.stops==0,"Auto/button modes or repeated render start failed");
+                    screen.togglePageSound("b");screen.togglePageSound("b2");check(manager.plays==4,"Independent buttons did not play");
+                    screen.togglePageSound("b");check(manager.stops==1 && screen.isPageSoundPlaying(button2),"One button stopped another track");
+                    screen.togglePageSound("a");check(manager.plays==4,"Automatic sound activated as a button");
+                    manager.active.remove(screen.pageSounds.get(button2));screen.updatePageSound();check(manager.plays==4,"Finished track restarts itself");
+                    screen.togglePageSound("b2");check(manager.plays==5,"Finished button track cannot replay");
+                    screen.page=new Page(new VisualElement[0]);screen.updatePageSound();check(manager.active.equals(Set.of(unrelated)),"Page change leaks or stops unrelated audio");
+                    screen.page=new Page(new VisualElement[]{auto});screen.updatePageSound();check(manager.plays==6,"Returning page did not play");
+                    screen.removed();check(manager.active.equals(Set.of(unrelated)),"Close leaked audio");
+                    screen.updatePageSound();check(manager.plays==7,"Reopening did not reset playback");
+                    screen.page=null;screen.updatePageSound();check(manager.active.equals(Set.of(unrelated)),"Empty category leaked audio");
                 }
             }
             """.formatted(methods);

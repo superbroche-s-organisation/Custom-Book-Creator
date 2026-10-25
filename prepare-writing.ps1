@@ -70,8 +70,17 @@ foreach ($profile in Get-ChildItem -LiteralPath $root -Directory) {
         $interaction = $interaction.Replace("keyPressed(int key, int scanCode, int modifiers)", "keyPressed(net.minecraft.client.input.KeyEvent event)")
         $interaction = $interaction.Replace("keyPressed(key, scanCode, modifiers)", "keyPressed(event)")
         $interaction = $interaction.Replace("keyInventory.matches(key, scanCode)", "keyInventory.matches(event)")
+        $interaction = $interaction.Replace("closeCategoryMenuOnEscape(key)", "closeCategoryMenuOnEscape(event.key())")
     }
     Write-WritingTemplate (Join-Path $templateDir "page_interaction.java.ftl") ($assign + $interaction)
+
+    if ($version -lt [version]"1.20.2") {
+        $screenPath = Join-Path $templateDir "screen.java.ftl"
+        $screen = [IO.File]::ReadAllText($screenPath)
+        $screen = $screen.Replace("mouseScrolled(double mouseX, double mouseY, double deltaX, double deltaY)", "mouseScrolled(double mouseX, double mouseY, double deltaY)")
+        $screen = $screen.Replace("super.mouseScrolled(mouseX, mouseY, deltaX, deltaY)", "super.mouseScrolled(mouseX, mouseY, deltaY)")
+        Write-WritingTemplate $screenPath $screen
+    }
 
     $clientPath = Join-Path $templateDir "client_events.java.ftl"
     $client = [System.IO.File]::ReadAllText($clientPath)

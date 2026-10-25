@@ -162,6 +162,7 @@ extends ModElementGUI<CustomBook> {
     private final JComboBox<String> pageSound = new JComboBox<>();
     private final JComboBox<String> pageSoundTrigger = new JComboBox<>(new String[]{
             tr("option.sound_on_open"), tr("option.sound_on_button")});
+    private final JTextField soundLabel = new JTextField(24);
     private final JCheckBox pageTitleVisible = new JCheckBox(CustomBookGUI.tr("option.show_title"), true);
     private final VisualRichTextEditor textEditor = new VisualRichTextEditor();
     private final JButton editPageTitle = new JButton(tr("action.edit_page_title"));
@@ -542,11 +543,11 @@ extends ModElementGUI<CustomBook> {
         this.editPageTitle.addActionListener(event -> this.selectPageTitle());
         jPanel2.add((Component)jPanel3, "North");
         jPanel2.add((Component)this.createElementToolbar(), "Center");
-        jPanel2.add(this.createPageSoundPanel(), "South");
         jPanel.add((Component)jPanel2, "North");
         this.inspectorCards.add((Component)this.createNoSelectionCard(), "NONE");
         this.inspectorCards.add((Component)this.createTextCard(), "TEXT");
         this.inspectorCards.add(this.createInputCard(), "INPUT");
+        this.inspectorCards.add(this.createSoundCard(), "SOUND");
         this.inspectorCards.add((Component)this.createMediaCard(), "MEDIA");
         this.inspectorCards.add((Component)this.createButtonCard(), "BUTTON");
         this.inspectorCards.add((Component)this.createNavigationCard(), "NAV");
@@ -645,7 +646,7 @@ extends ModElementGUI<CustomBook> {
         return jPanel;
     }
 
-    private JToolBar createElementToolbar() {
+    private JPanel createElementToolbar() {
         JToolBar jToolBar = new JToolBar();
         jToolBar.setFloatable(false);
         jToolBar.setBorder(new EmptyBorder(4, 0, 4, 0));
@@ -669,16 +670,19 @@ extends ModElementGUI<CustomBook> {
         JButton input = compactButton(tr("action.add_input"), tr("hint.add_input"));
         input.addActionListener(event -> addInputElement());
         jToolBar.add(input);
+        JButton sound = compactButton(tr("action.add_sound"), tr("hint.add_sound"));
+        sound.addActionListener(event -> addSoundElement());
+        jToolBar.add(sound);
         jToolBar.add(jButton2);
         jToolBar.add(jButton3);
         jToolBar.add(jButton4);
-        jToolBar.addSeparator();
-        jToolBar.add(jButton5);
-        jToolBar.add(jButton6);
-        jToolBar.addSeparator();
-        jToolBar.add(jButton7);
-        jToolBar.add(jButton8);
-        return jToolBar;
+        JToolBar actions = new JToolBar();
+        actions.setFloatable(false);
+        actions.add(jButton5); actions.add(jButton6); actions.addSeparator();
+        actions.add(jButton7); actions.add(jButton8);
+        JPanel rows = new JPanel(new GridLayout(0, 1, 0, 3));
+        rows.add(jToolBar); rows.add(actions);
+        return rows;
     }
 
     private JPanel createNoSelectionCard() {
@@ -698,11 +702,11 @@ extends ModElementGUI<CustomBook> {
         inputDefault.setLineWrap(true);
         inputDefault.setWrapStyleWord(true);
         addRow(panel, c, 0, tr("field.input_label"), inputLabel, null);
-        addRow(panel, c, 1, tr("field.input_key"), inputKey, "writing/input_key");
-        addRow(panel, c, 2, tr("field.input_mode"), inputMode, "writing/input_mode");
+        addRow(panel, c, 1, tr("field.input_key"), inputKey, "custombook/writing/input_key");
+        addRow(panel, c, 2, tr("field.input_mode"), inputMode, "custombook/writing/input_mode");
         addRow(panel, c, 3, tr("field.input_limit"), inputMaxLength, null);
-        addRow(panel, c, 4, tr("field.input_default"), new JScrollPane(inputDefault), "writing/input_default");
-        addRow(panel, c, 5, tr("field.input_choices"), new JScrollPane(inputChoices), "writing/input_choices");
+        addRow(panel, c, 4, tr("field.input_default"), new JScrollPane(inputDefault), "custombook/writing/input_default");
+        addRow(panel, c, 5, tr("field.input_choices"), new JScrollPane(inputChoices), "custombook/writing/input_choices");
         Runnable update = () -> {
             if (loadingElement || activeElement == null || !"INPUT".equals(activeElement.type)) return;
             activeElement.label = inputLabel.getText();
@@ -737,6 +741,14 @@ extends ModElementGUI<CustomBook> {
             return;
         }
         CustomBook.BookElement element = CustomBook.BookElement.input();
+        activePage.elements.add(element);
+        selectElement(element);
+        bookEdited();
+    }
+
+    private void addSoundElement() {
+        if (activePage == null) return;
+        var element = CustomBook.BookElement.sound("", "OPEN");
         activePage.elements.add(element);
         selectElement(element);
         bookEdited();
@@ -1268,9 +1280,11 @@ extends ModElementGUI<CustomBook> {
         this.refreshCategoryTargets();
     }
 
-    private JPanel createPageSoundPanel() {
-        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
-        panel.add(new JLabel(tr("field.page_sound")));
+    private JPanel createSoundCard() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints c = new GridBagConstraints();
+        c.insets = new Insets(5, 6, 5, 6);
+        c.anchor = GridBagConstraints.WEST;
         pageSound.setPreferredSize(new Dimension(190, 26));
         pageSound.setRenderer(new javax.swing.DefaultListCellRenderer() {
             @Override public Component getListCellRendererComponent(javax.swing.JList<?> list, Object value,
@@ -1279,31 +1293,42 @@ extends ModElementGUI<CustomBook> {
                         value == null || "".equals(value) ? tr("option.no_sound") : value, index, selected, focused);
             }
         });
-        panel.add(pageSound);
-        panel.add(pageSoundTrigger);
+        addRow(panel, c, 0, tr("field.sound_resource"), pageSound, null);
+        addRow(panel, c, 1, tr("field.sound_trigger"), pageSoundTrigger, null);
+        addRow(panel, c, 2, tr("field.sound_button_label"), soundLabel, null);
         panel.setToolTipText(tr("hint.page_sound"));
         pageSound.addActionListener(event -> {
-            if (loadingPage || activePage == null) return;
-            activePage.pageSound = safeComboString(pageSound, "");
-            pageSoundTrigger.setEnabled(!activePage.getPageSound().isEmpty());
-            queueBookHistory();
+            if (loadingElement || activeElement == null || !"SOUND".equals(activeElement.type)) return;
+            activeElement.mediaName = safeComboString(pageSound, "");
+            bookEdited();
         });
         pageSoundTrigger.addActionListener(event -> {
-            if (!loadingPage && activePage != null) {
-                activePage.pageSoundTrigger = pageSoundTrigger.getSelectedIndex() == 1 ? "BUTTON" : "OPEN";
-                queueBookHistory();
+            if (!loadingElement && activeElement != null && "SOUND".equals(activeElement.type)) {
+                activeElement.soundTrigger = pageSoundTrigger.getSelectedIndex() == 1 ? "BUTTON" : "OPEN";
+                soundLabel.setEnabled(pageSoundTrigger.getSelectedIndex() == 1);
+                bookEdited();
             }
         });
+        soundLabel.getDocument().addDocumentListener(simpleListener(() -> {
+            if (!loadingElement && activeElement != null && "SOUND".equals(activeElement.type)) {
+                activeElement.label = soundLabel.getText();
+                bookEdited();
+            }
+        }));
         refreshPageSoundChoices();
-        return panel;
+        JPanel card = new JPanel(new BorderLayout());
+        card.add(panel, BorderLayout.NORTH);
+        card.add(new JLabel(tr("hint.sound_element")), BorderLayout.SOUTH);
+        return card;
     }
 
     private void refreshPageSoundChoices() {
         if (pageSound == null || pageSoundTrigger == null) return;
-        boolean previous = loadingPage;
-        loadingPage = true;
+        boolean previous = loadingElement;
+        loadingElement = true;
         try {
-            String selected = activePage == null ? "" : activePage.pageSound;
+            var element = activeElement != null && "SOUND".equals(activeElement.type) ? activeElement : null;
+            String selected = element == null ? "" : element.mediaName;
             java.util.SortedSet<String> sounds = new java.util.TreeSet<>();
             sounds.add("");
             if (app != null && app.getWorkspace() != null)
@@ -1313,10 +1338,14 @@ extends ModElementGUI<CustomBook> {
             pageSound.removeAllItems();
             sounds.forEach(pageSound::addItem);
             pageSound.setSelectedItem(selected == null ? "" : selected);
-            pageSound.setEnabled(activePage != null);
-            pageSoundTrigger.setEnabled(activePage != null && !activePage.getPageSound().isEmpty());
-            pageSoundTrigger.setSelectedIndex(activePage != null && "BUTTON".equals(activePage.getPageSoundTrigger()) ? 1 : 0);
-        } finally { loadingPage = previous; }
+            pageSound.setEnabled(element != null);
+            pageSoundTrigger.setEnabled(element != null);
+            pageSoundTrigger.setSelectedIndex(element != null && "BUTTON".equals(element.getSoundTrigger()) ? 1 : 0);
+            if (soundLabel != null) {
+                soundLabel.setText(element == null ? "" : element.label);
+                soundLabel.setEnabled(element != null && "BUTTON".equals(element.getSoundTrigger()));
+            }
+        } finally { loadingElement = previous; }
     }
 
     private void onTreeSelectionChanged() {
@@ -1381,6 +1410,11 @@ extends ModElementGUI<CustomBook> {
                 this.elementW.setValue(bookElement.width);
                 this.elementH.setValue(bookElement.height);
                 switch (bookElement.type) {
+                case "SOUND": {
+                    this.inspectorCardLayout.show(this.inspectorCards, "SOUND");
+                    this.refreshPageSoundChoices();
+                    break;
+                }
                 case "INPUT": {
                     this.inspectorCardLayout.show(this.inspectorCards, "INPUT");
                     inputLabel.setText(bookElement.label);
@@ -1547,6 +1581,7 @@ extends ModElementGUI<CustomBook> {
             case "IMAGE" -> CustomBookGUI.tr("element.image");
             case "GIF" -> CustomBookGUI.tr("element.animated_gif");
             case "BUTTON" -> CustomBookGUI.tr("element.button_named", element.label == null ? CustomBookGUI.tr("default.button") : element.label);
+            case "SOUND" -> tr("field.sound_resource") + ": " + element.mediaName;
             case "NAV_PREV" -> CustomBookGUI.tr("element.previous_arrow");
             case "NAV_NEXT" -> CustomBookGUI.tr("element.next_arrow");
             default -> CustomBookGUI.tr("element.text");
@@ -2832,6 +2867,7 @@ extends ModElementGUI<CustomBook> {
         bookElement2.resizeByCorners = bookElement.resizeByCorners;
         bookElement2.inputKey = bookElement.inputKey;
         bookElement2.inputMode = bookElement.inputMode;
+        bookElement2.soundTrigger = bookElement.soundTrigger;
         bookElement2.inputMaxLength = bookElement.inputMaxLength;
         bookElement2.inputChoices = bookElement.inputChoices == null ? new ArrayList<>() : new ArrayList<>(bookElement.inputChoices);
         bookElement2.normalize();
@@ -3610,6 +3646,17 @@ extends ModElementGUI<CustomBook> {
             Shape shape = graphics2D.getClip();
             graphics2D.clipRect(bookElement.x, bookElement.y, bookElement.width, bookElement.height);
             switch (bookElement.type) {
+                case "SOUND": {
+                    if ("BUTTON".equals(bookElement.getSoundTrigger())) this.paintButtonElement(graphics2D, bookElement);
+                    else {
+                        graphics2D.setColor(new Color(0xDDD2B4));
+                        graphics2D.fillRect(bookElement.x, bookElement.y, bookElement.width, bookElement.height);
+                        graphics2D.setColor(new Color(0x6D5237));
+                        graphics2D.drawString(tr("option.sound_on_open") + ": " + bookElement.mediaName,
+                                bookElement.x + 4, bookElement.y + 15);
+                    }
+                    break;
+                }
                 case "INPUT": {
                     graphics2D.setColor(new Color(0xE9DEBF));
                     graphics2D.fillRect(bookElement.x, bookElement.y, bookElement.width, bookElement.height);

@@ -26,6 +26,15 @@ public final class NativeMCreatorSaveTest {
             if (!PluginLoader.INSTANCE.getFailedPlugins().isEmpty())
                 throw new AssertionError("Plugin loading failed: " + PluginLoader.INSTANCE.getFailedPlugins());
             L10N.initTranslations();
+            net.mcreator.ui.help.HelpLoader.preloadCache();
+            net.mcreator.ui.help.IHelpContext context = () -> "custombook";
+            for (String key : java.util.List.of("input_key", "input_mode", "input_default", "input_choices")) {
+                var entry = context.withEntry("custombook/writing/" + key);
+                if (!net.mcreator.ui.help.HelpLoader.hasFullHelp(entry)
+                        || net.mcreator.ui.help.HelpLoader.loadHelpFor(entry, false).contains("No help entry"))
+                    throw new AssertionError("Writing help did not load: " + key);
+            }
+            System.out.println("NATIVE_WRITING_HELP_OK");
             net.mcreator.ui.init.UIRES.preloadImages();
             VariableTypeLoader.loadVariableTypes();
             net.mcreator.blockly.data.BlocklyLoader.init();

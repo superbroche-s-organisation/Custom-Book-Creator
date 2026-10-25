@@ -19,6 +19,7 @@
                 inlineDraft = writing.value(key);
                 inlineChoices = "PRESET".equals(field.mode());
                 inlineChoiceIndex = -1;
+                categoryMenuOpen = false;
                 createInlineWidgets();
                 break;
             }
@@ -43,19 +44,20 @@
         addRenderableWidget(inlineEditor);
         setFocused(inlineEditor);
         inlineEditor.setFocused(true);
-        int left = sx(PAD + 9), right = sx(PAD + SIDEBAR_W / 2 + 2);
-        int buttonWidth = Math.max(10, sd(SIDEBAR_W / 2 - 11)), buttonHeight = Math.max(12, sd(19));
+        // Controls live below the right-hand page, outside the category sidebar.
+        int left = sx(PAD + SIDEBAR_W + GAP_W), right = sx(PAD + SIDEBAR_W + GAP_W + PAGE_W / 2 + 2);
+        int buttonWidth = Math.max(10, sd(PAGE_W / 2 - 2)), buttonHeight = Math.max(12, sd(19));
         inlineMode = addRenderableWidget(net.minecraft.client.gui.components.Button.builder(Component.literal(""), button -> {
             inlineDraft = inlineEditor.getValue();
             inlineChoices = !inlineChoices;
             refreshInlineWidgets();
-        }).bounds(left, sy(PAD + PAGE_H - 94), buttonWidth, buttonHeight).build());
+        }).bounds(left, sy(PAD + PAGE_H + 5), buttonWidth, buttonHeight).build());
         inlineChoice = addRenderableWidget(net.minecraft.client.gui.components.Button.builder(Component.literal("Next choice"), button -> {
             if (inlineField.choices().length == 0) return;
             inlineChoiceIndex = (inlineChoiceIndex + 1) % inlineField.choices().length;
             inlineDraft = inlineField.choices()[inlineChoiceIndex];
             inlineEditor.setValue(inlineDraft);
-        }).bounds(right, sy(PAD + PAGE_H - 94), buttonWidth, buttonHeight).build());
+        }).bounds(right, sy(PAD + PAGE_H + 5), buttonWidth, buttonHeight).build());
         inlineSave = addRenderableWidget(net.minecraft.client.gui.components.Button.builder(Component.literal("Save"), button -> {
             inlineDraft = inlineEditor.getValue();
             writing.save(inlineField.key(), inlineDraft, null, success -> {
@@ -63,9 +65,9 @@
                 refreshInlineWidgets();
             });
             refreshInlineWidgets();
-        }).bounds(left, sy(PAD + PAGE_H - 72), buttonWidth, buttonHeight).build());
+        }).bounds(left, sy(PAD + PAGE_H + 27), buttonWidth, buttonHeight).build());
         inlineCancel = addRenderableWidget(net.minecraft.client.gui.components.Button.builder(Component.literal("Cancel"), button -> cancelInlineWriting())
-                .bounds(right, sy(PAD + PAGE_H - 72), buttonWidth, buttonHeight).build());
+                .bounds(right, sy(PAD + PAGE_H + 27), buttonWidth, buttonHeight).build());
         refreshInlineWidgets();
     }
 
@@ -102,6 +104,22 @@
         } else endInlineWriting();
     }
 
+    private void navigateToCategory(String id) {
+        if (writing.pending) return;
+        Runnable navigate = () -> {
+            if (inlineField != null) endInlineWriting();
+            selectCategoryById(id);
+            <#if data.hasPageSounds()>updatePageSound();</#if>
+        };
+        if (inlineField != null && inlineEditor != null && !inlineEditor.getValue().equals(writing.value(inlineField.key()))) {
+            inlineDraft = inlineEditor.getValue();
+            minecraft.setScreen(new net.minecraft.client.gui.screens.ConfirmScreen(discard -> {
+                if (discard) navigate.run();
+                minecraft.setScreen(this);
+            }, Component.literal("Discard unsaved changes?"), Component.literal("These edits have not been saved.")));
+        } else navigate.run();
+    }
+
     private void renderInlineWidgets(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         refreshInlineWidgets();
         if (inlineEditor == null) return;
@@ -110,10 +128,13 @@
         inlineCancel.render(graphics, mouseX, mouseY, partialTick);
         inlineMode.render(graphics, mouseX, mouseY, partialTick);
         inlineChoice.render(graphics, mouseX, mouseY, partialTick);
+        drawButtonBorder(graphics, PAD + SIDEBAR_W + GAP_W + inlineElement.x, PAD + inlineElement.y,
+                inlineElement.width, inlineElement.height, 0xFF6D5237, 1);
     }
     </#if>
 
     @Override public boolean keyPressed(int key, int scanCode, int modifiers) {
+        if (closeCategoryMenuOnEscape(key)) return true;
         <#if data.hasWritingZones()>
         // While a writing zone is open, inventory keys are text, including E.
         if (inlineField != null) return super.keyPressed(key, scanCode, modifiers);

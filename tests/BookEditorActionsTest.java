@@ -43,6 +43,21 @@ public final class BookEditorActionsTest {
         check(element(id).x == 45, "Deleted element not restored with original geometry");
         step(() -> call("addTextElement"));
         check(!((JButton)get("redoBook")).isEnabled(), "New edit kept stale redo branch");
+        step(() -> call("addSoundElement"));
+        String soundId = ((CustomBook.BookElement)get("activeElement")).id;
+        check(element(soundId).type.equals("SOUND"), "Add sound did not create a page element");
+        step(() -> ((JButton)get("undoBook")).doClick());
+        check(elementOrNull(soundId)==null, "Sound creation cannot be undone");
+        step(() -> ((JButton)get("redoBook")).doClick());
+        check(element(soundId).type.equals("SOUND"), "Redo lost sound element type");
+        step(() -> {
+            JComponent canvas=(JComponent)get("previewCanvas");
+            Object binding=canvas.getInputMap(JComponent.WHEN_FOCUSED).get(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_DELETE,0));
+            canvas.getActionMap().get(binding).actionPerformed(new java.awt.event.ActionEvent(canvas,0,"delete"));
+        });
+        check(elementOrNull(soundId)==null, "Delete shortcut cannot remove sound element");
+        step(() -> ((JButton)get("undoBook")).doClick());
+        check(element(soundId).type.equals("SOUND"), "Undo did not restore deleted sound element");
 
         CustomBook book = new CustomBook(null);
         book.categories = java.util.List.of((CustomBook.BookCategory)((DefaultMutableTreeNode)root.getChildAt(0)).getUserObject());
@@ -81,7 +96,7 @@ public final class BookEditorActionsTest {
         set("textEditor",new VisualRichTextEditor());
         set("bookHistory",new BookEditHistory());set("historyJson",new com.google.gson.Gson());
         CardLayout cards=new CardLayout();JPanel panel=new JPanel(cards);
-        for(String card:java.util.List.of("NONE","TEXT","MEDIA","BUTTON","INPUT","NAV"))panel.add(new JPanel(),card);
+        for(String card:java.util.List.of("NONE","TEXT","MEDIA","BUTTON","INPUT","NAV","SOUND"))panel.add(new JPanel(),card);
         set("inspectorCardLayout",cards);set("inspectorCards",panel);
         root=new DefaultMutableTreeNode("Book");
         CustomBook.BookCategory category=new CustomBook.BookCategory("General");

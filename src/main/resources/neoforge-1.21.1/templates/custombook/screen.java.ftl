@@ -28,9 +28,9 @@ public class ${name}BookScreen extends Screen {
     private static final int PAD = 5;
     private static final int CONTENT_W = SIDEBAR_W + GAP_W + PAGE_W;
     private static final int DESIGN_W = CONTENT_W + PAD * 2;
-    private static final int DESIGN_H = PAGE_H + PAD * 2;
+    private static final int DESIGN_H = PAGE_H + PAD * 2 + <#if data.hasWritingZones()>50<#else>0</#if>;
     private static final int DEFAULT_SIZE = 12;
-    private static final int CATEGORY_ROWS = <#if data.hasWritingZones()>7<#elseif data.hasPageSounds()>10<#else>11</#if>;
+    private static final int CATEGORY_ROWS = 10;
     private static final boolean HIDE_NEXT_ARROW_AT_CATEGORY_END = ${data.hideNextArrowAtCategoryEnd?c};
     private static final Pattern TAG_PATTERN = Pattern.compile("\\[(/?)(b|i|u|s|obf|size|color|url|page|align)(?:=([^\\]]+))?\\]", Pattern.CASE_INSENSITIVE);
 
@@ -54,7 +54,7 @@ public class ${name}BookScreen extends Screen {
                     "${element.label?j_string}", "${element.targetCategoryId?j_string}", "${element.targetPageId?j_string}",
                     "${element.buttonStyle?j_string}", "${element.buttonBackgroundColor?j_string}", "${element.buttonBorderColor?j_string}",
                     "${element.buttonTextColor?j_string}", "${element.buttonImageName?j_string}", "${element.buttonImageType?j_string}", "${element.buttonImageMode?j_string}",
-                    "element.${element.id?j_string}"
+                    "element.${element.id?j_string}", "${element.getSoundTrigger()?j_string}"
                 )<#sep>,</#sep>
                 </#list>
             })<#sep>,</#sep>
@@ -66,7 +66,8 @@ public class ${name}BookScreen extends Screen {
     private final List<ClickRegion> clickRegions = new ArrayList<>();
     private int categoryIndex = 0;
     private int pageIndex = 0;
-    private int categoryListPage = 0;
+    private int categoryMenuScroll = 0;
+    private boolean categoryMenuOpen;
     private float uiScale = 1f;
     private int originX = 0;
     private int originY = 0;
@@ -96,44 +97,66 @@ public class ${name}BookScreen extends Screen {
 
     <#if data.hasPageSounds()>
     private Page soundPage;
-    private net.minecraft.client.resources.sounds.SoundInstance pageSoundInstance;
+    private final java.util.Map<VisualElement, net.minecraft.client.resources.sounds.SoundInstance> pageSounds = new java.util.HashMap<>();
 
     private void updatePageSound() {
         Page page = currentPage();
         if (soundPage == page) return;
-        stopPageSound();
-        soundPage = page;
-        if (page != null && "OPEN".equals(page.soundTrigger)) playPageSound();
+        stopPageSound(); soundPage = page;
+        if (page != null) for (VisualElement element : page.elements)
+            if ("SOUND".equals(element.type) && "OPEN".equals(element.soundTrigger)) playPageSound(element);
     }
 
-    private void playPageSound() {
-        stopPageSound();
-        Page page = currentPage();
-        if (page == null || page.sound.isEmpty() || minecraft == null) return;
-        pageSoundInstance = new net.minecraft.client.resources.sounds.SimpleSoundInstance(
-                ResourceLocation.fromNamespaceAndPath("${modid}", page.sound), net.minecraft.sounds.SoundSource.MUSIC,
+    private void playPageSound(VisualElement element) {
+        stopPageSound(element);
+        if (element.mediaName.isEmpty() || minecraft == null) return;
+        var instance = new net.minecraft.client.resources.sounds.SimpleSoundInstance(
+                ResourceLocation.fromNamespaceAndPath("${modid}", element.mediaName), net.minecraft.sounds.SoundSource.MUSIC,
                 1f, 1f, net.minecraft.util.RandomSource.create(), false, 0,
                 net.minecraft.client.resources.sounds.SoundInstance.Attenuation.NONE, 0, 0, 0, true);
-        minecraft.getSoundManager().play(pageSoundInstance);
+        pageSounds.put(element, instance);
+        minecraft.getSoundManager().play(instance);
     }
 
-    private boolean isPageSoundPlaying() {
-        return pageSoundInstance != null && minecraft != null && minecraft.getSoundManager().isActive(pageSoundInstance);
+    private boolean isPageSoundPlaying(VisualElement element) {
+        var instance = pageSounds.get(element);
+        return instance != null && minecraft != null && minecraft.getSoundManager().isActive(instance);
+    }
+
+    private void stopPageSound(VisualElement element) {
+        var instance = pageSounds.remove(element);
+        if (instance != null && minecraft != null) minecraft.getSoundManager().stop(instance);
     }
 
     private void stopPageSound() {
-        if (pageSoundInstance != null && minecraft != null) minecraft.getSoundManager().stop(pageSoundInstance);
-        pageSoundInstance = null;
+        if (minecraft != null) for (var instance : pageSounds.values()) minecraft.getSoundManager().stop(instance);
+        pageSounds.clear();
     }
 
-    private void togglePageSound() {
-        if (isPageSoundPlaying()) stopPageSound(); else playPageSound();
+    private void togglePageSound(String key) {
+        Page page = currentPage();
+        if (page == null) return;
+        for (VisualElement element : page.elements) if ("SOUND".equals(element.type)
+                && "BUTTON".equals(element.soundTrigger) && key.equals(element.translationKey)) {
+            if (isPageSoundPlaying(element)) stopPageSound(element); else playPageSound(element);
+            return;
+        }
+    }
+
+    private void renderSoundElement(GuiGraphics graphics, VisualElement element, int x, int y, int w, int h) {
+        if (!"BUTTON".equals(element.soundTrigger) || element.mediaName.isEmpty()) return;
+        fillD(graphics, x, y, x + w, y + h, parseHexColor(element.buttonBackgroundColor, 0xFF8A6846));
+        drawButtonBorder(graphics, x, y, w, h, parseHexColor(element.buttonBorderColor, 0xFF6D5237), 1);
+        enableDesignScissor(graphics, x + 2, y + 1, Math.max(1, w - 4), Math.max(1, h - 2));
+        String label = (isPageSoundPlaying(element) ? "Stop: " : "Play: ") + translated(element.translationKey, element.label);
+        drawCenteredD(graphics, Component.literal(label), x + w / 2, y + Math.max(2, (h - 9) / 2),
+                parseHexColor(element.buttonTextColor, 0xFFFFEDC5));
+        graphics.disableScissor();
+        addClickRegion(x, y, w, h, "page_sound", element.translationKey);
     }
 
     @Override public void removed() {
-        stopPageSound();
-        soundPage = null;
-        super.removed();
+        stopPageSound(); soundPage = null; super.removed();
     }
     </#if>
 
@@ -199,7 +222,9 @@ public class ${name}BookScreen extends Screen {
         <#if data.hasWritingZones()>
         String writingStatus = writing.signed ? "Signed: " + writing.author : writing.pending ? "Loading..."
                 : writing.writable && ${package}.book.${name}BookWritingData.ALLOW_SIGNING ? "Sign book..." : "Read only";
-        drawTextD(graphics, Component.literal(writingStatus), startX + 9, sideY + PAGE_H - 18, 0xFFFFE5B8);
+        enableDesignScissor(graphics, startX + 7, sideY + PAGE_H - 22, SIDEBAR_W - 14, 20);
+        drawCenteredD(graphics, Component.literal(writingStatus), startX + SIDEBAR_W / 2, sideY + PAGE_H - 18, 0xFFFFE5B8);
+        graphics.disableScissor();
         if (writing.writable && ${package}.book.${name}BookWritingData.ALLOW_SIGNING)
             addClickRegion(startX + 7, sideY + PAGE_H - 22, SIDEBAR_W - 14, 18, "sign", "");
         if (inlineField != null) {
@@ -212,13 +237,6 @@ public class ${name}BookScreen extends Screen {
         Page page = currentPage();
         <#if data.hasPageSounds()>
         updatePageSound();
-        if (page != null && !page.sound.isEmpty() && "BUTTON".equals(page.soundTrigger)) {
-            int buttonY = sideY + PAGE_H - <#if data.hasWritingZones()>46<#else>22</#if>;
-            fillD(graphics, startX + 9, buttonY, startX + SIDEBAR_W - 9, buttonY + 18, 0xFF5C4A3A);
-            drawCenteredD(graphics, Component.literal(isPageSoundPlaying() ? "Stop sound" : "Play sound"),
-                    startX + SIDEBAR_W / 2, buttonY + 4, 0xFFFFE8B8);
-            addClickRegion(startX + 9, buttonY, SIDEBAR_W - 18, 18, "page_sound", "");
-        }
         </#if>
         if (page == null) {
             drawCenteredD(graphics, Component.literal("No pages"), pageX + PAGE_W / 2, pageY + 32, 0xFF4B3929);
@@ -300,38 +318,57 @@ public class ${name}BookScreen extends Screen {
     }
 
     private void renderCategories(GuiGraphics graphics, int x, int y, int w) {
-        int pageCount = Math.max(1, (CATEGORIES.length + CATEGORY_ROWS - 1) / CATEGORY_ROWS);
-        categoryListPage = Math.max(0, Math.min(categoryListPage, pageCount - 1));
-        int first = categoryListPage * CATEGORY_ROWS;
-        int cy = y;
-        for (int i = first; i < Math.min(CATEGORIES.length, first + CATEGORY_ROWS); i++) {
-            Category category = CATEGORIES[i];
-            boolean selected = i == categoryIndex;
-            fillD(graphics, x - 4, cy - 4, x + w + 4, cy + 15, selected ? 0xFF5C4A3A : 0x00101010);
-            drawTextD(graphics, Component.literal(translated("category." + category.id, category.name)), x, cy, selected ? 0xFFFFE8B8 : 0xFFD7C4A5);
-            addClickRegion(x - 4, cy - 4, w + 8, 19, "category", category.id);
-            cy += 23;
+        String label = CATEGORIES.length == 0 ? "No categories" : translated("category." + CATEGORIES[categoryIndex].id, CATEGORIES[categoryIndex].name);
+        fillD(graphics, x - 4, y - 4, x + w + 4, y + 15, 0xFF5C4A3A);
+        enableDesignScissor(graphics, x, y - 1, Math.max(1, w - 14), 16);
+        drawTextD(graphics, Component.literal(label), x, y, 0xFFFFE8B8);
+        graphics.disableScissor();
+        drawTextD(graphics, Component.literal(categoryMenuOpen ? "^" : "v"), x + w - 8, y, 0xFFFFE8B8);
+        addClickRegion(x - 4, y - 4, w + 8, 19, "category_menu", "");
+        if (!categoryMenuOpen) return;
+        scrollCategories(0);
+        int rows = Math.min(CATEGORY_ROWS, CATEGORIES.length);
+        fillD(graphics, x - 4, y + 18, x + w + 4, y + 18 + rows * 23, 0xFF342D27);
+        for (int row = 0; row < rows; row++) {
+            int index = categoryMenuScroll + row;
+            Category category = CATEGORIES[index];
+            int cy = y + 23 + row * 23;
+            if (index == categoryIndex) fillD(graphics, x - 3, cy - 4, x + w - 5, cy + 15, 0xFF5C4A3A);
+            enableDesignScissor(graphics, x, cy - 2, Math.max(1, w - 8), 18);
+            drawTextD(graphics, Component.literal(translated("category." + category.id, category.name)), x, cy, 0xFFFFE8B8);
+            graphics.disableScissor();
+            addClickRegion(x - 4, cy - 4, w + 8, 23, "category", category.id);
         }
-        if (pageCount > 1) {
-            int pagerY = y + CATEGORY_ROWS * 23 + 3;
-            if (categoryListPage > 0) {
-                drawCenteredD(graphics, Component.literal("<"), x + 8, pagerY + 3, 0xFFFFE8B8);
-                addClickRegion(x - 4, pagerY, 26, 18, "category_list", "prev");
-            }
-            drawCenteredD(graphics, Component.literal((categoryListPage + 1) + " / " + pageCount),
-                x + w / 2, pagerY + 3, 0xFFD7C4A5);
-            if (categoryListPage + 1 < pageCount) {
-                drawCenteredD(graphics, Component.literal(">"), x + w - 8, pagerY + 3, 0xFFFFE8B8);
-                addClickRegion(x + w - 22, pagerY, 26, 18, "category_list", "next");
-            }
+        if (CATEGORIES.length > rows && rows > 0) {
+            int track = rows * 23;
+            int thumb = Math.max(6, track * rows / CATEGORIES.length);
+            int offset = (track - thumb) * categoryMenuScroll / Math.max(1, CATEGORIES.length - rows);
+            fillD(graphics, x + w, y + 18, x + w + 3, y + 18 + track, 0xFF5C4A3A);
+            fillD(graphics, x + w, y + 18 + offset, x + w + 3, y + 18 + offset + thumb, 0xFFD7C4A5);
         }
     }
 
-    private void changeCategoryListPage(int delta) {
-        int pageCount = Math.max(1, (CATEGORIES.length + CATEGORY_ROWS - 1) / CATEGORY_ROWS);
-        categoryListPage = Math.max(0, Math.min(categoryListPage + delta, pageCount - 1));
+    private void scrollCategories(int delta) {
+        categoryMenuScroll = Math.max(0, Math.min(categoryMenuScroll + delta, Math.max(0, CATEGORIES.length - CATEGORY_ROWS)));
     }
 
+    private boolean closeCategoryMenuOnEscape(int key) {
+        if (categoryMenuOpen && key == 256) { categoryMenuOpen = false; return true; }
+        return false;
+    }
+
+    private boolean categoryMenuContains(double mouseX, double mouseY) {
+        return mouseX >= sx(PAD + 9) && mouseX < sx(PAD + SIDEBAR_W - 9)
+                && mouseY >= sy(PAD + 38) && mouseY < sy(PAD + 60 + Math.min(CATEGORY_ROWS, CATEGORIES.length) * 23);
+    }
+
+    @Override public boolean mouseScrolled(double mouseX, double mouseY, double deltaX, double deltaY) {
+        if (categoryMenuOpen && categoryMenuContains(mouseX, mouseY)) {
+            scrollCategories(deltaY > 0 ? -1 : deltaY < 0 ? 1 : 0);
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, deltaX, deltaY);
+    }
     private void renderTitle(GuiGraphics graphics, Title title, int pageX, int pageY) {
         int x = pageX + title.x;
         int y = pageY + title.y;
@@ -354,6 +391,7 @@ public class ${name}BookScreen extends Screen {
             <#if data.hasWritingZones()>
             case "INPUT" -> renderWritingZone(graphics, element, x, y, w, h);
             </#if>
+            <#if data.hasPageSounds()>case "SOUND" -> renderSoundElement(graphics, element, x, y, w, h);</#if>
             case "TEXT" -> {
                 enableDesignScissor(graphics, x, y, w, h);
                 renderRichTextBlock(graphics, translated(element.translationKey, element.content), x, y, w, h, element.align);
@@ -430,14 +468,14 @@ public class ${name}BookScreen extends Screen {
     }
 
     private void drawButtonBorder(GuiGraphics graphics, int x, int y, int w, int h, int color, int thickness) {
-        for (int i = 0; i < thickness; i++) {
-            fillD(graphics, x + i, y + i, x + w - i, y + i + 1, color);
-            fillD(graphics, x + i, y + h - i - 1, x + w - i, y + h - i, color);
-            fillD(graphics, x + i, y + i, x + i + 1, y + h - i, color);
-            fillD(graphics, x + w - i - 1, y + i, x + w - i, y + h - i, color);
-        }
+        int left = sx(x), top = sy(y);
+        int right = Math.max(left + 1, sx(x + w)), bottom = Math.max(top + 1, sy(y + h));
+        int edge = Math.min(Math.max(1, sd(thickness)), Math.min(right - left, bottom - top));
+        graphics.fill(left, top, right, top + edge, color);
+        graphics.fill(left, bottom - edge, right, bottom, color);
+        graphics.fill(left, top, left + edge, bottom, color);
+        graphics.fill(right - edge, top, right, bottom, color);
     }
-
     private static int parseHexColor(String value, int fallback) {
         try {
             if (value != null && value.matches("#[0-9a-fA-F]{6}")) return 0xFF000000 | Integer.parseInt(value.substring(1), 16);
@@ -527,7 +565,7 @@ public class ${name}BookScreen extends Screen {
     private VisualElement defaultNavigationElement(boolean next) {
         return new VisualElement(next ? "NAV_NEXT" : "NAV_PREV", next ? 226 : 12, 278, 18, 18,
             "", "LEFT", "", new String[0], 100, "", "", "",
-            "TRANSPARENT", "#FFF4D6", "#6D5237", "#6A5842", "", "SCREEN", "NONE", "");
+            "TRANSPARENT", "#FFF4D6", "#6D5237", "#6A5842", "", "SCREEN", "NONE", "", "OPEN");
     }
 
     private void renderNavigationArrow(GuiGraphics graphics, VisualElement element, int x, int y, int w, int h, boolean right) {
@@ -868,7 +906,7 @@ public class ${name}BookScreen extends Screen {
         for (int i = 0; i < CATEGORIES.length; i++) {
             if (CATEGORIES[i].id.equals(id)) {
                 categoryIndex = i;
-                categoryListPage = i / CATEGORY_ROWS;
+                categoryMenuScroll = i; scrollCategories(0); categoryMenuOpen = false;
                 pageIndex = 0;
                 return;
             }
@@ -880,7 +918,7 @@ public class ${name}BookScreen extends Screen {
             for (int p = 0; p < CATEGORIES[c].pages.length; p++) {
                 if (CATEGORIES[c].pages[p].id.equals(id)) {
                     categoryIndex = c;
-                    categoryListPage = c / CATEGORY_ROWS;
+                    categoryMenuScroll = c; scrollCategories(0); categoryMenuOpen = false;
                     pageIndex = p;
                     return;
                 }
@@ -906,7 +944,7 @@ public class ${name}BookScreen extends Screen {
             if (c < 0) return;
         }
         categoryIndex = c;
-        categoryListPage = c / CATEGORY_ROWS;
+        categoryMenuScroll = c; scrollCategories(0); categoryMenuOpen = false;
         pageIndex = p;
     }
 
@@ -925,21 +963,21 @@ public class ${name}BookScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        <#if data.hasWritingZones()>
-        if (inlineField != null) return super.mouseClicked(mouseX, mouseY, button);
-        </#if>
+
         if (button == 0) {
+            <#if data.hasWritingZones()>if (inlineField != null && mouseX >= sx(PAD + SIDEBAR_W + GAP_W)) return super.mouseClicked(mouseX, mouseY, button);</#if>
+            if (categoryMenuOpen && !categoryMenuContains(mouseX, mouseY)) { categoryMenuOpen = false; return true; }
             for (int i = clickRegions.size() - 1; i >= 0; i--) {
                 ClickRegion region = clickRegions.get(i);
                 if (!region.contains(mouseX, mouseY)) continue;
                 switch (region.type) {
                     <#if data.hasWritingZones()>
                     case "writing" -> beginInlineWriting(region.target);
-                    case "sign" -> Minecraft.getInstance().setScreen(new ${name}BookWritingScreen(this, writing, null));
+                    case "sign" -> { if (inlineField == null && !writing.pending) Minecraft.getInstance().setScreen(new ${name}BookWritingScreen(this, writing, null)); }
                     </#if>
-                    <#if data.hasPageSounds()>case "page_sound" -> togglePageSound();</#if>
-                    case "category" -> { selectCategoryById(region.target); <#if data.hasPageSounds()>updatePageSound();</#if> }
-                    case "category_list" -> changeCategoryListPage("next".equals(region.target) ? 1 : -1);
+                    <#if data.hasPageSounds()>case "page_sound" -> togglePageSound(region.target);</#if>
+                    case "category" -> { <#if data.hasWritingZones()>navigateToCategory(region.target);<#else>selectCategoryById(region.target); <#if data.hasPageSounds()>updatePageSound();</#if></#if> }
+                    case "category_menu" -> { categoryMenuOpen = !categoryMenuOpen; categoryMenuScroll = categoryIndex; scrollCategories(0); }
                     case "nav" -> { advancePage("next".equals(region.target) ? 1 : -1); <#if data.hasPageSounds()>updatePageSound();</#if> }
                     case "page" -> { selectPageById(region.target); <#if data.hasPageSounds()>updatePageSound();</#if> }
                     case "url" -> {
@@ -966,7 +1004,7 @@ public class ${name}BookScreen extends Screen {
     private record VisualElement(String type, int x, int y, int width, int height, String content, String align,
                                  String mediaName, String[] frames, int frameDelay, String label, String targetCategoryId, String targetPageId,
                                  String buttonStyle, String buttonBackgroundColor, String buttonBorderColor, String buttonTextColor,
-                                 String buttonImageName, String buttonImageType, String buttonImageMode, String translationKey) {}
+                                 String buttonImageName, String buttonImageType, String buttonImageMode, String translationKey, String soundTrigger) {}
     private record StateFrame(String tag, State previous) {}
     private record RichToken(String text, State state) {}
     private record Glyph(String raw, Component component, float scale, int width, int height, boolean newline,

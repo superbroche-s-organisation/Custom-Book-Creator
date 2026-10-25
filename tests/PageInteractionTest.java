@@ -36,6 +36,8 @@ public final class PageInteractionTest {
         String methods = method(source, "@Override public boolean keyPressed(")
                 + method(source, "@Override public void onClose()")
                 + method(source, "private void cancelInlineWriting()")
+                + method(source, "private void navigateToCategory(")
+                + method(source, "private boolean closeCategoryMenuOnEscape(")
                 + method(source, "private static String translated(");
         methods = methods.replace("net.minecraft.client.input.KeyEvent", "KeyEvent")
                 .replace("net.minecraft.client.gui.screens.ConfirmScreen", "ConfirmScreen")
@@ -74,6 +76,9 @@ public final class PageInteractionTest {
                 }
                 Client minecraft=new Client(); Field inlineField; Editor inlineEditor;
                 Writing writing=new Writing(); String inlineDraft=""; int ended;
+                boolean categoryMenuOpen; String selectedCategory;
+                void selectCategoryById(String id) { selectedCategory=id; }
+                void updatePageSound() {}
                 void endInlineWriting() { inlineField=null;inlineEditor=null;ended++; }
                 void start(String text) { inlineField=new Field("field"); inlineEditor=new Editor(); inlineEditor.value=text; }
                 %s
@@ -98,6 +103,14 @@ public final class PageInteractionTest {
                     s.press(256);((ConfirmScreen)s.minecraft.screen).reply.accept(true);
                     check(s.inlineField==null && s.ended==2,"Discard did not end inline editing");
                     s.press(256);check(s.closed==3,"Escape cannot close book after editing");
+                    s.categoryMenuOpen=true;s.press(256);check(!s.categoryMenuOpen && s.closed==3,"Escape closed book through dropdown");
+                    s.start("draft");s.writing.pending=true;s.navigateToCategory("other");
+                    check(s.selectedCategory==null,"Category changed during server write");
+                    s.writing.pending=false;s.navigateToCategory("other");
+                    ((ConfirmScreen)s.minecraft.screen).reply.accept(false);
+                    check(s.selectedCategory==null && s.inlineField!=null,"Category change discarded draft without approval");
+                    s.navigateToCategory("other");((ConfirmScreen)s.minecraft.screen).reply.accept(true);
+                    check(s.selectedCategory.equals("other") && s.inlineField==null,"Confirmed category navigation failed");
                     check(translated("page.one","[b]Source[/b]").equals("[b]Source[/b]"),"Missing translation loses fallback markup");
                     String key="custombook.audit_mod.audit_book.page.one";
                     Language.active.values.put(key,"[b]Bonjour[/b]");

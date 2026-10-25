@@ -1,3 +1,19 @@
+# Changelog — 2.2.0-test.2 (unreleased)
+
+Author: **Superbroche** | October 25, 2026
+
+- Translation source/editing text is always white in the dialog, including explicitly dark source colors. Stored formatting colors remain unchanged.
+- Added **+ Sound/music** to create independent sound elements. Each element supports automatic page-entry playback or a movable/resizable Play/Stop button. Previous page-level sound settings migrate once without duplication.
+- Removed the global page-audio row and sidebar audio button. Multiple sounds on a page have independent playback instances and stop when leaving it.
+- Fixed all four writing help bindings to use complete `custombook/writing/...` resource paths; native MCreator loading is checked.
+- Replaced category-list pagination with a scrollable dropdown. Removed its numeric page counter and navigation arrows.
+- Centered the signing action at the bottom of the category sidebar, and moved mode/choice/Save/Cancel controls below the right-hand page.
+- Category changes during editing protect pending writes and confirm discarding unsaved text.
+- Fixed missing right-hand text-zone borders at fractional GUI scales: all four edges are drawn at a minimum of one GUI pixel, including during editing.
+- Documented regeneration after plugin replacement so old books receive the updated code and inventory-key closing behavior.
+
+See the [patch notes](docs/2.2.0-test.2/PATCH_NOTES.md), [guide](docs/2.2.0-test.2/GUIDE.md), and [validation](docs/2.2.0-test.2/VALIDATION.md). No release is published.
+
 # Changelog — 2.2.0-test.1 (unreleased)
 
 Author: **Superbroche** | October 25, 2026

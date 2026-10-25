@@ -437,7 +437,8 @@ IItemWithTexture {
 
     public boolean hasPageSounds() {
         return getBookCategories().stream().flatMap(category -> category.pages.stream())
-                .anyMatch(page -> !page.getPageSound().isEmpty());
+                .flatMap(page -> page.getBookElements().stream())
+                .anyMatch(element -> "SOUND".equals(element.type) && !element.getSoundName().isEmpty());
     }
 
     public static class BookPage {
@@ -502,6 +503,12 @@ IItemWithTexture {
                 this.elements = new ArrayList<BookElement>();
             }
             this.elements.removeIf(bookElement -> bookElement == null);
+            // Migrate the first test build's page-level setting into a normal editable element once.
+            if (!getPageSound().isEmpty()) {
+                this.elements.add(BookElement.sound(getPageSound(), getPageSoundTrigger()));
+                this.pageSound = "";
+                this.pageSoundTrigger = "OPEN";
+            }
             String string = this.content == null ? "" : this.content;
             BookElement bookElement = null;
             boolean bl = false;
@@ -636,12 +643,31 @@ IItemWithTexture {
         public boolean resizeByCorners = true;
         public String inputKey = "";
         public String inputMode = "BOTH";
+        public String soundTrigger = "OPEN";
         public int inputMaxLength = 1024;
         public List<String> inputChoices = new ArrayList<>();
 
         public List<String> getScreenContentChunks() {
             return "INPUT".equals(type) ? List.of(inputKey) : getContentChunks();
         }
+
+        public static BookElement sound(String name, String trigger) {
+            BookElement element = new BookElement();
+            element.type = "SOUND";
+            element.mediaName = name == null ? "" : name;
+            element.soundTrigger = trigger;
+            element.label = "Sound / music";
+            element.x = 68; element.y = 250; element.width = 120; element.height = 22;
+            element.normalize();
+            return element;
+        }
+
+        public String getSoundName() {
+            return mediaName != null && mediaName.matches("[a-z0-9_.-]+(?:/[a-z0-9_.-]+)*")
+                    && !mediaName.contains("..") ? mediaName : "";
+        }
+
+        public String getSoundTrigger() { return "BUTTON".equals(soundTrigger) ? "BUTTON" : "OPEN"; }
 
         public static BookElement input() {
             BookElement element = new BookElement();
@@ -718,7 +744,7 @@ IItemWithTexture {
                 this.id = UUID.randomUUID().toString();
             }
             if (this.type == null || !(this.type.equals("TEXT") || this.type.equals("IMAGE")
-                    || this.type.equals("GIF") || this.type.equals("BUTTON") || this.type.equals("INPUT")
+                    || this.type.equals("GIF") || this.type.equals("BUTTON") || this.type.equals("INPUT") || this.type.equals("SOUND")
                     || this.type.equals("NAV_PREV") || this.type.equals("NAV_NEXT"))) {
                 this.type = "TEXT";
             }
@@ -726,6 +752,8 @@ IItemWithTexture {
                 this.content = "";
             }
             this.content = CustomBook.limit(this.content, MAX_TEXT_LENGTH);
+            soundTrigger = getSoundTrigger();
+            if ("SOUND".equals(type)) mediaName = getSoundName();
             if (inputKey == null || !inputKey.matches("[a-z][a-z0-9_]{0,31}")) {
                 inputKey = "field_" + UUID.nameUUIDFromBytes(
                         String.valueOf(id).getBytes(java.nio.charset.StandardCharsets.UTF_8))
@@ -811,6 +839,7 @@ IItemWithTexture {
                 case "GIF" -> "GIF";
                 case "BUTTON" -> "Button: " + this.label;
                 case "INPUT" -> "Writing zone: " + this.label;
+                case "SOUND" -> "Sound / music: " + this.mediaName;
                 case "NAV_PREV" -> "Arrow: previous page";
                 case "NAV_NEXT" -> "Arrow: next page";
                 default -> "Text";
