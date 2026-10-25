@@ -63,6 +63,16 @@ foreach ($profile in Get-ChildItem -LiteralPath $root -Directory) {
     $yaml = [System.IO.File]::ReadAllText($definition).Replace("`r`n", "`n")
     Write-WritingTemplate $definition ($yaml.Replace("templates:`n", "templates:`n" + $entries))
 
+    $interaction = [IO.File]::ReadAllText((Join-Path $templatesRoot "page_interaction.java.ftl")).Replace("`r`n", "`n")
+    if ($modern) {
+        $interaction = $interaction.Replace("GuiGraphics", "GuiGraphicsExtractor")
+        $interaction = $interaction.Replace(".render(graphics,", ".extractRenderState(graphics,")
+        $interaction = $interaction.Replace("keyPressed(int key, int scanCode, int modifiers)", "keyPressed(net.minecraft.client.input.KeyEvent event)")
+        $interaction = $interaction.Replace("keyPressed(key, scanCode, modifiers)", "keyPressed(event)")
+        $interaction = $interaction.Replace("keyInventory.matches(key, scanCode)", "keyInventory.matches(event)")
+    }
+    Write-WritingTemplate (Join-Path $templateDir "page_interaction.java.ftl") ($assign + $interaction)
+
     $clientPath = Join-Path $templateDir "client_events.java.ftl"
     $client = [System.IO.File]::ReadAllText($clientPath)
     if ($loader -eq "fabric") {

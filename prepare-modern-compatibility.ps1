@@ -19,6 +19,10 @@ foreach ($file in Get-ChildItem -LiteralPath $destination -Recurse -File) {
     $text = $text.Replace("public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {`n        double mouseX = event.x();`n        double mouseY = event.y();`n        if (event.button() == 0) {",
         "public boolean mouseClicked(double mouseX, double mouseY, int button) {`n        if (button == 0) {")
     $text = $text.Replace("super.mouseClicked(event, doubleClick)", "super.mouseClicked(mouseX, mouseY, button)")
+    # The screen may put writing-focus guards before its first mouse-coordinate read.
+    $text = $text.Replace("public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick)", "public boolean mouseClicked(double mouseX, double mouseY, int button)")
+    $text = $text.Replace("        double mouseX = event.x();`n", "").Replace("        double mouseY = event.y();`n", "")
+    $text = $text.Replace("event.button() == 0", "button == 0")
     $text = $text.Replace("() -> DataComponents.WRITTEN_BOOK_CONTENT", "DataComponents.WRITTEN_BOOK_CONTENT")
     $text = $text.Replace("        clickRegions.clear();", "        renderBackground(graphics, mouseX, mouseY, partialTick);`n        clickRegions.clear();")
     [IO.File]::WriteAllText($file.FullName, $text, $utf8)

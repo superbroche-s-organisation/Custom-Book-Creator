@@ -6,7 +6,8 @@ param(
     # When supplied, TemplateRenderTest keeps its generated Java sources here
     # for compilation against the corresponding Minecraft/NeoForge libraries.
     [Parameter(Mandatory = $false)]
-    [string]$GeneratedSourcesDirectory
+    [string]$GeneratedSourcesDirectory,
+    [string[]]$TestFilter
 )
 
 $ErrorActionPreference = "Stop"
@@ -52,9 +53,12 @@ if ($testClasses.Count -eq 0) {
     throw "No public static void main(String[] args) test entry points were found."
 }
 if ($TargetMCreator -eq "2024.4") {
-    # This package intentionally contains Forge only; the seven Fabric profiles
-    # remain mandatory and are tested by the primary 2026.2 build.
+    # This package contains Forge and NeoForge. Fabric remains covered by 2026.2.
     $testClasses = @($testClasses | Where-Object SourceName -ne "FabricStartingBookTest")
+}
+if ($TestFilter) {
+    $testClasses = @($testClasses | Where-Object { $_.SourceName -in $TestFilter })
+    if ($testClasses.Count -eq 0) { throw "No test entry point matches TestFilter." }
 }
 
 $generatedSourcesPath = $null

@@ -159,6 +159,9 @@ extends ModElementGUI<CustomBook> {
     private final DefaultTreeModel treeModel = new DefaultTreeModel(this.rootNode);
     private final JTree bookTree = new JTree(this.treeModel);
     private final JTextField pageTitle = new JTextField();
+    private final JComboBox<String> pageSound = new JComboBox<>();
+    private final JComboBox<String> pageSoundTrigger = new JComboBox<>(new String[]{
+            tr("option.sound_on_open"), tr("option.sound_on_button")});
     private final JCheckBox pageTitleVisible = new JCheckBox(CustomBookGUI.tr("option.show_title"), true);
     private final VisualRichTextEditor textEditor = new VisualRichTextEditor();
     private final JButton editPageTitle = new JButton(tr("action.edit_page_title"));
@@ -219,6 +222,12 @@ extends ModElementGUI<CustomBook> {
     private CustomBook.BookElement activeElement;
     private boolean loadingPage;
     private boolean loadingElement;
+    private final fr.superbroche.mcreator.custombook.ui.BookEditHistory bookHistory =
+            new fr.superbroche.mcreator.custombook.ui.BookEditHistory();
+    private final JButton undoBook = compactButton("↶", tr("action.undo_book"));
+    private final JButton redoBook = compactButton("↷", tr("action.redo_book"));
+    private boolean historyReady, historyRestoring, historyQueued;
+    private final com.google.gson.Gson historyJson = new com.google.gson.Gson();
 
     private static String tr(String key, Object... arguments) {
         return L10N.t("custombook." + key, arguments);
@@ -229,6 +238,7 @@ extends ModElementGUI<CustomBook> {
         this.app = mCreator;
         this.initGUI();
         super.finalizeGUI();
+        resetBookHistory();
     }
 
     protected void initGUI() {
@@ -279,7 +289,7 @@ extends ModElementGUI<CustomBook> {
             if (!this.loadingElement && this.activeElement != null && "BUTTON".equals(this.activeElement.type)) {
                 this.activeElement.buttonImageType = string;
                 this.activeElement.buttonImageName = "";
-                this.previewCanvas.repaint();
+                this.bookEdited();
             }
         });
         this.navImageType.addActionListener(actionEvent -> {
@@ -288,7 +298,7 @@ extends ModElementGUI<CustomBook> {
             if (!this.loadingElement && CustomBookGUI.isNavigationElement(this.activeElement)) {
                 this.activeElement.buttonImageType = string;
                 this.activeElement.buttonImageName = "";
-                this.previewCanvas.repaint();
+                this.bookEdited();
             }
         });
     }
@@ -307,7 +317,7 @@ extends ModElementGUI<CustomBook> {
                 this.activeElement.buttonImageType = string2;
                 this.activeElement.buttonImageName = textureSelectionButton.hasTexture() ? textureSelectionButton.getTextureHolder().getRawTextureName() : "";
             }
-            this.previewCanvas.repaint();
+            this.bookEdited();
         });
         return textureSelectionButton;
     }
@@ -532,6 +542,7 @@ extends ModElementGUI<CustomBook> {
         this.editPageTitle.addActionListener(event -> this.selectPageTitle());
         jPanel2.add((Component)jPanel3, "North");
         jPanel2.add((Component)this.createElementToolbar(), "Center");
+        jPanel2.add(this.createPageSoundPanel(), "South");
         jPanel.add((Component)jPanel2, "North");
         this.inspectorCards.add((Component)this.createNoSelectionCard(), "NONE");
         this.inspectorCards.add((Component)this.createTextCard(), "TEXT");
@@ -550,14 +561,14 @@ extends ModElementGUI<CustomBook> {
         this.pageTitleVisible.addActionListener(actionEvent -> {
             if (!this.loadingPage && this.activePage != null) {
                 this.activePage.showTitle = this.pageTitleVisible.isSelected();
-                this.previewCanvas.repaint();
+                this.bookEdited();
             }
         });
         this.textEditor.setOnChange(this::syncVisualText);
         this.buttonLabel.getDocument().addDocumentListener(CustomBookGUI.simpleListener(() -> {
             if (!this.loadingElement && this.activeElement != null && "BUTTON".equals(this.activeElement.type)) {
                 this.activeElement.label = this.buttonLabel.getText().isBlank() ? CustomBookGUI.tr("default.button") : this.buttonLabel.getText();
-                this.previewCanvas.repaint();
+                this.bookEdited();
             }
         }));
         this.buttonTarget.addActionListener(actionEvent -> {
@@ -572,7 +583,7 @@ extends ModElementGUI<CustomBook> {
                     PageRef pageRef = (PageRef)object2;
                     this.activeElement.targetPageId = pageRef.id;
                 }
-                this.previewCanvas.repaint();
+                this.bookEdited();
             }
         });
         this.buttonPageTarget.addActionListener(actionEvent -> {
@@ -580,19 +591,19 @@ extends ModElementGUI<CustomBook> {
             if (!this.loadingElement && this.activeElement != null && "BUTTON".equals(this.activeElement.type) && (object = this.buttonPageTarget.getSelectedItem()) instanceof PageRef) {
                 PageRef pageRef = (PageRef)object;
                 this.activeElement.targetPageId = pageRef.id;
-                this.previewCanvas.repaint();
+                this.bookEdited();
             }
         });
         this.buttonStyle.addActionListener(actionEvent -> {
             if (!this.loadingElement && this.activeElement != null && "BUTTON".equals(this.activeElement.type)) {
                 this.activeElement.buttonStyle = (String)this.buttonStyle.getSelectedItem();
-                this.previewCanvas.repaint();
+                this.bookEdited();
             }
         });
         this.buttonImageMode.addActionListener(actionEvent -> {
             if (!this.loadingElement && this.activeElement != null && "BUTTON".equals(this.activeElement.type)) {
                 this.activeElement.buttonImageMode = (String)this.buttonImageMode.getSelectedItem();
-                this.previewCanvas.repaint();
+                this.bookEdited();
             }
         });
         this.buttonBackgroundColor.addActionListener(actionEvent -> this.chooseButtonColor("BACKGROUND"));
@@ -602,13 +613,13 @@ extends ModElementGUI<CustomBook> {
             this.updateNavigationImageVisibility();
             if (!this.loadingElement && CustomBookGUI.isNavigationElement(this.activeElement)) {
                 this.activeElement.buttonStyle = (String)this.navContainerStyle.getSelectedItem();
-                this.previewCanvas.repaint();
+                this.bookEdited();
             }
         });
         this.navGlyphStyle.addActionListener(actionEvent -> {
             if (!this.loadingElement && CustomBookGUI.isNavigationElement(this.activeElement)) {
                 this.activeElement.align = CustomBookGUI.navGlyphToAlign((String)this.navGlyphStyle.getSelectedItem());
-                this.previewCanvas.repaint();
+                this.bookEdited();
             }
         });
         this.navBackgroundColor.addActionListener(actionEvent -> this.chooseNavigationColor("BACKGROUND"));
@@ -617,13 +628,13 @@ extends ModElementGUI<CustomBook> {
         this.resizeBySides.addActionListener(actionEvent -> {
             if (!this.loadingElement && this.activeElement != null && ("IMAGE".equals(this.activeElement.type) || "GIF".equals(this.activeElement.type))) {
                 this.activeElement.resizeBySides = this.resizeBySides.isSelected();
-                this.previewCanvas.repaint();
+                this.bookEdited();
             }
         });
         this.resizeByCorners.addActionListener(actionEvent -> {
             if (!this.loadingElement && this.activeElement != null && ("IMAGE".equals(this.activeElement.type) || "GIF".equals(this.activeElement.type))) {
                 this.activeElement.resizeByCorners = this.resizeByCorners.isSelected();
-                this.previewCanvas.repaint();
+                this.bookEdited();
             }
         });
         this.textAlignment.addActionListener(actionEvent -> {
@@ -687,11 +698,11 @@ extends ModElementGUI<CustomBook> {
         inputDefault.setLineWrap(true);
         inputDefault.setWrapStyleWord(true);
         addRow(panel, c, 0, tr("field.input_label"), inputLabel, null);
-        addRow(panel, c, 1, tr("field.input_key"), inputKey, null);
-        addRow(panel, c, 2, tr("field.input_mode"), inputMode, null);
+        addRow(panel, c, 1, tr("field.input_key"), inputKey, "writing/input_key");
+        addRow(panel, c, 2, tr("field.input_mode"), inputMode, "writing/input_mode");
         addRow(panel, c, 3, tr("field.input_limit"), inputMaxLength, null);
-        addRow(panel, c, 4, tr("field.input_default"), new JScrollPane(inputDefault), null);
-        addRow(panel, c, 5, tr("field.input_choices"), new JScrollPane(inputChoices), null);
+        addRow(panel, c, 4, tr("field.input_default"), new JScrollPane(inputDefault), "writing/input_default");
+        addRow(panel, c, 5, tr("field.input_choices"), new JScrollPane(inputChoices), "writing/input_choices");
         Runnable update = () -> {
             if (loadingElement || activeElement == null || !"INPUT".equals(activeElement.type)) return;
             activeElement.label = inputLabel.getText();
@@ -699,7 +710,7 @@ extends ModElementGUI<CustomBook> {
             activeElement.inputMaxLength = ((Number) inputMaxLength.getValue()).intValue();
             activeElement.content = inputDefault.getText();
             activeElement.inputChoices = new ArrayList<>(List.of(inputChoices.getText().split("\\R", -1)));
-            previewCanvas.repaint();
+            bookEdited();
         };
         inputLabel.getDocument().addDocumentListener(simpleListener(update));
         inputDefault.getDocument().addDocumentListener(simpleListener(update));
@@ -728,7 +739,7 @@ extends ModElementGUI<CustomBook> {
         CustomBook.BookElement element = CustomBook.BookElement.input();
         activePage.elements.add(element);
         selectElement(element);
-        previewCanvas.repaint();
+        bookEdited();
     }
 
     private JPanel createTextCard() {
@@ -807,7 +818,7 @@ extends ModElementGUI<CustomBook> {
         }
         this.updateTextFormattingControls();
         this.textEditor.requestFocusInWindow();
-        this.previewCanvas.repaint();
+        this.bookEdited();
     }
 
     private void syncTitleControls() {
@@ -841,7 +852,7 @@ extends ModElementGUI<CustomBook> {
         title.normalize();
         // Do not rewrite a spinner document from its own DocumentListener.
         SwingUtilities.invokeLater(() -> { if (this.editingTitle) this.syncTitleControls(); });
-        this.previewCanvas.repaint();
+        this.bookEdited();
     }
 
     private JPanel createMediaCard() {
@@ -1029,6 +1040,16 @@ extends ModElementGUI<CustomBook> {
         JPanel jPanel = new JPanel(new BorderLayout(6, 6));
         jPanel.setBorder(BorderFactory.createTitledBorder(CustomBookGUI.tr("section.interactive_preview")));
         jPanel.add((Component)this.previewCanvas, "Center");
+        JPanel bookActions = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
+        bookActions.add(new JLabel(tr("section.book_actions")));
+        undoBook.addActionListener(event -> restoreBookHistory(false));
+        redoBook.addActionListener(event -> restoreBookHistory(true));
+        bookActions.add(undoBook);
+        bookActions.add(redoBook);
+        JButton translations = compactButton(tr("action.translations"), tr("hint.translations"));
+        translations.addActionListener(event -> fr.superbroche.mcreator.custombook.ui.BookTranslations.show(app, getElementFromGUI()));
+        bookActions.add(translations);
+        jPanel.add(bookActions, BorderLayout.NORTH);
         JPanel jPanel2 = new JPanel(new BorderLayout(4, 4));
         this.selectionInfo.setBorder(new EmptyBorder(3, 5, 1, 5));
         jPanel2.add((Component)this.selectionInfo, "North");
@@ -1047,9 +1068,9 @@ extends ModElementGUI<CustomBook> {
         JLabel jLabel = new JLabel(CustomBookGUI.tr("hint.preview_controls"));
         jLabel.setBorder(new EmptyBorder(1, 5, 5, 5));
         jPanel2.add((Component)jLabel, "South");
-        this.snapToGrid.addActionListener(actionEvent -> this.previewCanvas.repaint());
-        this.showGrid.addActionListener(actionEvent -> this.previewCanvas.repaint());
-        this.gridSize.addChangeListener(changeEvent -> this.previewCanvas.repaint());
+        this.snapToGrid.addActionListener(actionEvent -> this.bookEdited());
+        this.showGrid.addActionListener(actionEvent -> this.bookEdited());
+        this.gridSize.addChangeListener(changeEvent -> this.bookEdited());
         jPanel.add((Component)jPanel2, "South");
         jPanel.setMinimumSize(new Dimension(360, 420));
         return jPanel;
@@ -1079,7 +1100,7 @@ extends ModElementGUI<CustomBook> {
         this.activeElement.normalize();
         this.syncGeometryControls();
         this.updateSelectionInfo();
-        this.previewCanvas.repaint();
+        this.bookEdited();
     }
 
     private void syncGeometryControls() {
@@ -1169,7 +1190,7 @@ extends ModElementGUI<CustomBook> {
         this.activeElement.x = Math.max(0, Math.min(256 - this.activeElement.width, this.activeElement.x));
         this.activeElement.y = Math.max(0, Math.min(320 - this.activeElement.height, this.activeElement.y));
         this.updateSelectionInfo();
-        this.previewCanvas.repaint();
+        this.bookEdited();
     }
 
     private void addRow(JPanel jPanel, GridBagConstraints gridBagConstraints, int n, String string, JComponent jComponent, String string2) {
@@ -1247,11 +1268,63 @@ extends ModElementGUI<CustomBook> {
         this.refreshCategoryTargets();
     }
 
+    private JPanel createPageSoundPanel() {
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
+        panel.add(new JLabel(tr("field.page_sound")));
+        pageSound.setPreferredSize(new Dimension(190, 26));
+        pageSound.setRenderer(new javax.swing.DefaultListCellRenderer() {
+            @Override public Component getListCellRendererComponent(javax.swing.JList<?> list, Object value,
+                    int index, boolean selected, boolean focused) {
+                return super.getListCellRendererComponent(list,
+                        value == null || "".equals(value) ? tr("option.no_sound") : value, index, selected, focused);
+            }
+        });
+        panel.add(pageSound);
+        panel.add(pageSoundTrigger);
+        panel.setToolTipText(tr("hint.page_sound"));
+        pageSound.addActionListener(event -> {
+            if (loadingPage || activePage == null) return;
+            activePage.pageSound = safeComboString(pageSound, "");
+            pageSoundTrigger.setEnabled(!activePage.getPageSound().isEmpty());
+            queueBookHistory();
+        });
+        pageSoundTrigger.addActionListener(event -> {
+            if (!loadingPage && activePage != null) {
+                activePage.pageSoundTrigger = pageSoundTrigger.getSelectedIndex() == 1 ? "BUTTON" : "OPEN";
+                queueBookHistory();
+            }
+        });
+        refreshPageSoundChoices();
+        return panel;
+    }
+
+    private void refreshPageSoundChoices() {
+        if (pageSound == null || pageSoundTrigger == null) return;
+        boolean previous = loadingPage;
+        loadingPage = true;
+        try {
+            String selected = activePage == null ? "" : activePage.pageSound;
+            java.util.SortedSet<String> sounds = new java.util.TreeSet<>();
+            sounds.add("");
+            if (app != null && app.getWorkspace() != null)
+                app.getWorkspace().getSoundElements().forEach(sound -> sounds.add(sound.getName()));
+            // Preserve a reference if the resource has temporarily been removed.
+            if (selected != null && !selected.isEmpty()) sounds.add(selected);
+            pageSound.removeAllItems();
+            sounds.forEach(pageSound::addItem);
+            pageSound.setSelectedItem(selected == null ? "" : selected);
+            pageSound.setEnabled(activePage != null);
+            pageSoundTrigger.setEnabled(activePage != null && !activePage.getPageSound().isEmpty());
+            pageSoundTrigger.setSelectedIndex(activePage != null && "BUTTON".equals(activePage.getPageSoundTrigger()) ? 1 : 0);
+        } finally { loadingPage = previous; }
+    }
+
     private void onTreeSelectionChanged() {
         Object object;
         DefaultMutableTreeNode defaultMutableTreeNode = this.selectedNode();
         if (defaultMutableTreeNode == null || !((object = defaultMutableTreeNode.getUserObject()) instanceof CustomBook.BookPage)) {
             this.activePage = null;
+            this.refreshPageSoundChoices();
             boolean previousLoadingState = this.loadingPage;
             this.loadingPage = true;
             try {
@@ -1269,6 +1342,7 @@ extends ModElementGUI<CustomBook> {
         }
         CustomBook.BookPage bookPage = (CustomBook.BookPage)object;
         this.activePage = bookPage;
+        this.refreshPageSoundChoices();
         this.activePage.normalizeElements();
         this.ensureNavigationElements(this.activePage);
         boolean previousLoadingState = this.loadingPage;
@@ -1387,7 +1461,7 @@ extends ModElementGUI<CustomBook> {
         finally {
             this.loadingElement = previousLoadingState;
         }
-        this.previewCanvas.repaint();
+        this.bookEdited();
     }
 
     private void setMultiTypeTextureSelection(boolean bl, String string, String string2) {
@@ -1800,7 +1874,7 @@ extends ModElementGUI<CustomBook> {
                 this.activeElement.buttonTextColor = string3;
             }
         }
-        this.previewCanvas.repaint();
+        this.bookEdited();
     }
 
     private void bindFontSize() {
@@ -1903,7 +1977,7 @@ extends ModElementGUI<CustomBook> {
             this.activeElement.content = this.editorText();
             this.syncLegacyPageContent();
         }
-        this.previewCanvas.repaint();
+        this.bookEdited();
     }
 
     private static JButton colorSwatch(String string, String string2) {
@@ -1959,7 +2033,7 @@ extends ModElementGUI<CustomBook> {
                 this.activeElement.buttonTextColor = string3;
             }
         }
-        this.previewCanvas.repaint();
+        this.bookEdited();
     }
 
     private static String safeHex(String string, String string2) {
@@ -2117,7 +2191,7 @@ extends ModElementGUI<CustomBook> {
         }
         this.treeModel.nodeChanged(defaultMutableTreeNode);
         this.refreshCategoryTargets();
-        this.previewCanvas.repaint();
+        this.bookEdited();
     }
 
     private void removeSelectedNode() {
@@ -2172,6 +2246,90 @@ extends ModElementGUI<CustomBook> {
                     category.pages.add(page);
                 }
             }
+        }
+        queueBookHistory();
+    }
+
+    private fr.superbroche.mcreator.custombook.ui.BookEditHistory.State bookHistoryState() {
+        java.util.List<CustomBook.BookCategory> categories = new ArrayList<>();
+        for (int i = 0; i < rootNode.getChildCount(); i++) {
+            DefaultMutableTreeNode node = (DefaultMutableTreeNode) rootNode.getChildAt(i);
+            CustomBook.BookCategory category = (CustomBook.BookCategory) node.getUserObject();
+            CustomBook.BookCategory copy = new CustomBook.BookCategory(category.name);
+            copy.id = category.id;
+            copy.pages.clear();
+            for (int j = 0; j < node.getChildCount(); j++)
+                copy.pages.add((CustomBook.BookPage) ((DefaultMutableTreeNode) node.getChildAt(j)).getUserObject());
+            categories.add(copy);
+        }
+        return new fr.superbroche.mcreator.custombook.ui.BookEditHistory.State(historyJson.toJson(categories),
+                activePage == null ? null : activePage.id, activeElement == null ? null : activeElement.id, editingTitle);
+    }
+
+    private void updateBookHistoryButtons() {
+        if (bookHistory == null || undoBook == null || redoBook == null) return;
+        undoBook.setEnabled(bookHistory.canUndo());
+        redoBook.setEnabled(bookHistory.canRedo());
+    }
+
+    private void resetBookHistory() {
+        if (bookHistory == null) return;
+        bookHistory.reset(bookHistoryState());
+        historyReady = true;
+        updateBookHistoryButtons();
+    }
+
+    private void queueBookHistory() {
+        if (!historyReady || historyRestoring || loadingPage || loadingElement || historyQueued) return;
+        historyQueued = true;
+        SwingUtilities.invokeLater(() -> {
+            historyQueued = false;
+            if (!historyReady || historyRestoring || previewCanvas.dragging || previewCanvas.resizing || previewCanvas.draggingTitle) return;
+            bookHistory.push(bookHistoryState());
+            updateBookHistoryButtons();
+        });
+    }
+
+    private void bookEdited() {
+        previewCanvas.repaint();
+        queueBookHistory();
+    }
+
+    private void restoreBookHistory(boolean redo) {
+        if (!historyReady || historyRestoring) return;
+        bookHistory.push(bookHistoryState());
+        var state = redo ? bookHistory.redo() : bookHistory.undo();
+        if (state == null) return;
+        historyRestoring = true;
+        try {
+            rootNode.removeAllChildren();
+            DefaultMutableTreeNode selected = null;
+            for (CustomBook.BookCategory category : historyJson.fromJson(state.json(), CustomBook.BookCategory[].class)) {
+                DefaultMutableTreeNode categoryNode = new DefaultMutableTreeNode(category);
+                for (CustomBook.BookPage page : category.pages) {
+                    DefaultMutableTreeNode pageNode = new DefaultMutableTreeNode(page);
+                    categoryNode.add(pageNode);
+                    if (java.util.Objects.equals(page.id, state.pageId())) selected = pageNode;
+                }
+                rootNode.add(categoryNode);
+            }
+            treeModel.reload();
+            refreshCategoryTargets();
+            if (selected == null) selectFirstPage();
+            else {
+                bookTree.expandPath(new TreePath(((DefaultMutableTreeNode)selected.getParent()).getPath()));
+                bookTree.setSelectionPath(new TreePath(selected.getPath()));
+            }
+            if (activePage != null && state.title()) selectPageTitle();
+            else if (activePage != null) selectElement(activePage.elements.stream()
+                    .filter(element -> java.util.Objects.equals(element.id, state.elementId())).findFirst().orElse(null));
+        } finally {
+            historyRestoring = false;
+            // Opening the restored page fills legacy defaults. Accept that
+            // normalized state without treating it as a new edit and losing redo.
+            bookHistory.replaceCurrent(bookHistoryState());
+            updateBookHistoryButtons();
+            previewCanvas.repaint();
         }
     }
 
@@ -2541,6 +2699,7 @@ extends ModElementGUI<CustomBook> {
     }
 
     public void reloadDataLists() {
+        this.refreshPageSoundChoices();
         this.reloadModelChoices();
         if (writingPermission != null) writingPermission.refreshListKeepSelected(AbstractProcedureSelector.ReloadContext.create(app.getWorkspace()));
         if (onBookSigned != null) onBookSigned.refreshListKeepSelected(AbstractProcedureSelector.ReloadContext.create(app.getWorkspace()));
@@ -2597,6 +2756,7 @@ extends ModElementGUI<CustomBook> {
         this.repairButtonTargets();
         this.refreshCategoryTargets();
         this.selectFirstPage();
+        this.resetBookHistory();
     }
 
     private void selectItemModel(int n, String string) {
@@ -2626,6 +2786,8 @@ extends ModElementGUI<CustomBook> {
                 bookPage2.id = bookPage.id == null || bookPage.id.isBlank() ? UUID.randomUUID().toString() : bookPage.id;
                 bookPage2.showTitle = bookPage.showTitle;
                 bookPage2.titleDesign = bookPage.getTitleDesign().copy();
+                bookPage2.pageSound = bookPage.getPageSound();
+                bookPage2.pageSoundTrigger = bookPage.getPageSoundTrigger();
                 bookPage2.content = bookPage.content == null ? "" : bookPage.content;
                 bookPage2.elements.clear();
                 for (CustomBook.BookElement bookElement : bookPage.elements) {
@@ -2752,6 +2914,8 @@ extends ModElementGUI<CustomBook> {
                         ? UUID.randomUUID().toString() : bookPage.id;
                 savedPage.showTitle = bookPage.showTitle;
                 savedPage.titleDesign = bookPage.getTitleDesign().copy();
+                savedPage.pageSound = bookPage.getPageSound();
+                savedPage.pageSoundTrigger = bookPage.getPageSoundTrigger();
                 savedPage.content = bookPage.content == null ? "" : bookPage.content;
                 savedPage.elements.clear();
                 if (bookPage.elements != null) {
@@ -3039,6 +3203,14 @@ extends ModElementGUI<CustomBook> {
         private ResizeHandle resizeHandle = ResizeHandle.NONE;
 
         PagePreviewCanvas() {
+            this.setFocusable(true);
+            this.getInputMap(JComponent.WHEN_FOCUSED).put(
+                    javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_DELETE, 0), "delete-book-element");
+            this.getActionMap().put("delete-book-element", new javax.swing.AbstractAction() {
+                @Override public void actionPerformed(java.awt.event.ActionEvent event) {
+                    CustomBookGUI.this.deleteActiveElement();
+                }
+            });
             this.setPreferredSize(new Dimension(420, 520));
             this.setMinimumSize(new Dimension(300, 380));
             this.setBackground(new Color(45, 45, 45));
@@ -3050,6 +3222,7 @@ extends ModElementGUI<CustomBook> {
                     if (PagePreviewCanvas.this.page == null || !SwingUtilities.isLeftMouseButton(mouseEvent)) {
                         return;
                     }
+                    PagePreviewCanvas.this.requestFocusInWindow();
                     Point point = PagePreviewCanvas.this.toLogical(mouseEvent.getPoint());
                     if (PagePreviewCanvas.this.titleHandleAt(point)) {
                         CustomBook.TitleLayout layout = PagePreviewCanvas.this.page.getTitleLayout();
@@ -3092,6 +3265,7 @@ extends ModElementGUI<CustomBook> {
                     PagePreviewCanvas.this.resizing = false;
                     PagePreviewCanvas.this.resizeHandle = ResizeHandle.NONE;
                     PagePreviewCanvas.this.updateCursorFor(PagePreviewCanvas.this.toLogical(mouseEvent.getPoint()));
+                    CustomBookGUI.this.queueBookHistory();
                 }
 
                 @Override

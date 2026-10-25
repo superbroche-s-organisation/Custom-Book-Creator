@@ -17,6 +17,9 @@ foreach ($file in Get-ChildItem -LiteralPath $templates -File) {
     $text = $text.Replace("object.size()", "object.entrySet().size()")
     $text = $text.Replace('org.slf4j.LoggerFactory.getLogger(', 'org.apache.logging.log4j.LogManager.getLogger(')
     if ($file.Name -eq "screen.java.ftl") {
+        $text = $text.Replace("net.minecraft.util.RandomSource.create(), ", "")
+        $text = $text.Replace("net.minecraft.locale.Language.getInstance().getOrDefault(key, fallback)",
+            "net.minecraft.locale.Language.getInstance().has(key) ? net.minecraft.locale.Language.getInstance().getOrDefault(key) : fallback")
         $text = $text.Replace("import net.minecraft.client.gui.GuiGraphics;", "")
         $text = $text.Replace("GuiGraphics", '${name}BookLegacyGraphics')
         $text = $text.Replace('public void renderBackground(${name}BookLegacyGraphics graphics) {', @'
@@ -69,6 +72,12 @@ public void render(PoseStack poseStack, int mouseX, int mouseY, float partialTic
         var graphics = new ${name}BookLegacyGraphics(poseStack);
 '@)
         $text = $text.Replace("super.render(graphics,", "super.render(poseStack,")
+    }
+    if ($file.Name -eq "page_interaction.java.ftl") {
+        $text = $text.Replace("net.minecraft.client.gui.components.MultiLineEditBox", '${name}BookLegacyTextBox')
+        $text = $text.Replace("net.minecraft.client.gui.components.Button.builder(", '${name}BookLegacyButton.builder(')
+        $text = $text.Replace("GuiGraphics", '${name}BookLegacyGraphics')
+        $text = $text.Replace(".render(graphics,", ".render(graphics.pose(),")
     }
     if ($file.Extension -eq ".ftl" -and $file.Name.Contains(".json")) {
         $text = $text.Replace('${texture.getValue().format("%s:block/%s")}', '${modid}:blocks/${texture.getValue()}')

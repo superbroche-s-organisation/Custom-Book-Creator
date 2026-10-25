@@ -89,7 +89,7 @@ try {
     }
     $releaseProfiles = switch ($TargetMCreator) {
         "2022.2" { @("forge-1.17.1") }
-        "2024.4" { @("forge-1.20.1") }
+        "2024.4" { @("forge-1.20.1", "neoforge-1.21.1") }
         default { @("forge-1.20.1", "neoforge-1.21.1", "neoforge-1.21.8", "neoforge-26.1.2", "neoforge-26.2", "fabric-26.2") }
     }
     if (-not $IncludeExperimental) {
@@ -102,7 +102,6 @@ try {
     }
     Copy-Item -Path (Join-Path $classesDir "*") -Destination $stagingDir -Recurse -Force
     if ($TargetMCreator -ne "2026.2") {
-        $keptProfile = if ($TargetMCreator -eq "2022.2") { "forge-1.17.1" } else { "forge-1.20.1" }
         if ($TargetMCreator -eq "2022.2") {
             $pluginManifest.PSObject.Properties.Remove("supportedversions")
             $pluginManifest | Add-Member minversion 202200200000
@@ -110,14 +109,19 @@ try {
         } else {
             $pluginManifest.supportedversions = @(2024004)
         }
-        $pluginManifest.info.description = "Custom Book Creator for MCreator $TargetMCreator / $keptProfile."
+        $pluginManifest.info.description = "Custom Book Creator for MCreator $TargetMCreator / $($releaseProfiles -join ', ')."
         $pluginManifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $stagingDir "plugin.json") -Encoding utf8
         # Only strip generated staging directories, never project sources or installed generators.
         foreach ($profile in Get-ChildItem -LiteralPath $stagingDir -Directory) {
-            if ($profile.Name -ne $keptProfile -and (Test-Path -LiteralPath (Join-Path $profile.FullName "custombook.definition.yaml"))) {
+            if ($profile.Name -notin $releaseProfiles -and (Test-Path -LiteralPath (Join-Path $profile.FullName "custombook.definition.yaml"))) {
                 if ((Split-Path -Parent $profile.FullName) -ne $stagingDir) { throw "Unexpected staging path" }
                 Remove-Item -LiteralPath $profile.FullName -Recurse -Force
             }
+        }
+        if ($TargetMCreator -eq "2024.4") {
+            # The GeckoLib 2026.2 workaround references a core template absent
+            # from 2024.4. Its native generators do not require this mixin file.
+            Remove-Item -LiteralPath (Join-Path $stagingDir "neoforge-1.21.1/generator.yaml")
         }
     }
     $catalog = @(foreach ($profile in Get-ChildItem -LiteralPath $stagingDir -Directory | Sort-Object Name) {

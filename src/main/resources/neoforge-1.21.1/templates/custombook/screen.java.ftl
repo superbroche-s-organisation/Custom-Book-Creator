@@ -30,7 +30,7 @@ public class ${name}BookScreen extends Screen {
     private static final int DESIGN_W = CONTENT_W + PAD * 2;
     private static final int DESIGN_H = PAGE_H + PAD * 2;
     private static final int DEFAULT_SIZE = 12;
-    private static final int CATEGORY_ROWS = 11;
+    private static final int CATEGORY_ROWS = <#if data.hasWritingZones()>7<#elseif data.hasPageSounds()>10<#else>11</#if>;
     private static final boolean HIDE_NEXT_ARROW_AT_CATEGORY_END = ${data.hideNextArrowAtCategoryEnd?c};
     private static final Pattern TAG_PATTERN = Pattern.compile("\\[(/?)(b|i|u|s|obf|size|color|url|page|align)(?:=([^\\]]+))?\\]", Pattern.CASE_INSENSITIVE);
 
@@ -41,6 +41,7 @@ public class ${name}BookScreen extends Screen {
             <#assign title = page.getTitleDesign()>
             <#assign layout = page.getTitleLayout()>
             new Page("${page.id?j_string}", "${page.title?j_string}", ${page.showTitle?c},
+                "${page.getPageSound()?j_string}", "${page.getPageSoundTrigger()?j_string}",
                 new Title(String.join("", new String[] {<#list page.getTitleContentChunks() as chunk>"${chunk?j_string}"<#sep>, </#sep></#list>}),
                     "${title.align?j_string}", ${layout.x()}, ${layout.y()}, ${layout.width()}, ${layout.height()}, ${layout.rotation()},
                     ${title.barVisible?c}, "${title.barColor?j_string}", ${layout.barX()}, ${layout.barY()}, ${layout.barWidth()}, ${layout.barHeight()}),
@@ -52,7 +53,8 @@ public class ${name}BookScreen extends Screen {
                     new String[] {<#list element.frames as frame>"${frame?j_string}"<#sep>, </#sep></#list>}, ${element.frameDelay},
                     "${element.label?j_string}", "${element.targetCategoryId?j_string}", "${element.targetPageId?j_string}",
                     "${element.buttonStyle?j_string}", "${element.buttonBackgroundColor?j_string}", "${element.buttonBorderColor?j_string}",
-                    "${element.buttonTextColor?j_string}", "${element.buttonImageName?j_string}", "${element.buttonImageType?j_string}", "${element.buttonImageMode?j_string}"
+                    "${element.buttonTextColor?j_string}", "${element.buttonImageName?j_string}", "${element.buttonImageType?j_string}", "${element.buttonImageMode?j_string}",
+                    "element.${element.id?j_string}"
                 )<#sep>,</#sep>
                 </#list>
             })<#sep>,</#sep>
@@ -80,18 +82,72 @@ public class ${name}BookScreen extends Screen {
         </#if>
     }
 
+    @Override protected void init() {
+        <#if data.hasWritingZones()>
+        if (inlineEditor != null) inlineDraft = inlineEditor.getValue();
+        if (inlineField == null) writing.load(); else createInlineWidgets();
+        </#if>
+        <#if data.hasPageSounds()>updatePageSound();</#if>
+    }
+    @Override public void tick() {
+        <#if data.hasWritingZones()>writing.tick();</#if>
+        <#if data.hasPageSounds()>updatePageSound();</#if>
+    }
+
+    <#if data.hasPageSounds()>
+    private Page soundPage;
+    private net.minecraft.client.resources.sounds.SoundInstance pageSoundInstance;
+
+    private void updatePageSound() {
+        Page page = currentPage();
+        if (soundPage == page) return;
+        stopPageSound();
+        soundPage = page;
+        if (page != null && "OPEN".equals(page.soundTrigger)) playPageSound();
+    }
+
+    private void playPageSound() {
+        stopPageSound();
+        Page page = currentPage();
+        if (page == null || page.sound.isEmpty() || minecraft == null) return;
+        pageSoundInstance = new net.minecraft.client.resources.sounds.SimpleSoundInstance(
+                ResourceLocation.fromNamespaceAndPath("${modid}", page.sound), net.minecraft.sounds.SoundSource.MUSIC,
+                1f, 1f, net.minecraft.util.RandomSource.create(), false, 0,
+                net.minecraft.client.resources.sounds.SoundInstance.Attenuation.NONE, 0, 0, 0, true);
+        minecraft.getSoundManager().play(pageSoundInstance);
+    }
+
+    private boolean isPageSoundPlaying() {
+        return pageSoundInstance != null && minecraft != null && minecraft.getSoundManager().isActive(pageSoundInstance);
+    }
+
+    private void stopPageSound() {
+        if (pageSoundInstance != null && minecraft != null) minecraft.getSoundManager().stop(pageSoundInstance);
+        pageSoundInstance = null;
+    }
+
+    private void togglePageSound() {
+        if (isPageSoundPlaying()) stopPageSound(); else playPageSound();
+    }
+
+    @Override public void removed() {
+        stopPageSound();
+        soundPage = null;
+        super.removed();
+    }
+    </#if>
+
+
     <#if data.hasWritingZones()>
     private final ${package}.client.${name}BookWritingClient writing;
-
-    @Override protected void init() { writing.load(); }
-    @Override public void tick() { writing.tick(); }
 
     private void renderWritingZone(GuiGraphics graphics, VisualElement element, int x, int y, int w, int h) {
         fillD(graphics, x, y, x + w, y + h, 0xFFE9DEBF);
         drawButtonBorder(graphics, x, y, w, h, 0xFF6D5237, 1);
         enableDesignScissor(graphics, x + 3, y + 3, Math.max(1, w - 6), Math.max(1, h - 6));
         String text = writing.value(element.content);
-        if (text.isEmpty()) text = writing.writable ? "Click to write: " + element.label : element.label;
+        if (text.isEmpty()) text = writing.writable ? "Click to write: " + translated(element.translationKey, element.label)
+                : translated(element.translationKey, element.label);
         int cy = y + 4;
         int wrapWidth = Math.max(1, Math.round(sd(Math.max(1, w - 8)) / crispTextScale(uiScale)));
         for (var line : font.split(Component.literal(text), wrapWidth)) {
@@ -110,6 +166,8 @@ public class ${name}BookScreen extends Screen {
     public boolean isPauseScreen() {
         return false;
     }
+
+    <#include "page_interaction.java.ftl">
 
     /**
      * Vanilla 1.21.1 applies the in-game menu blur from Screen#renderBackground.
@@ -136,17 +194,32 @@ public class ${name}BookScreen extends Screen {
         fillD(graphics, pageX - 3, pageY - 3, pageX + PAGE_W + 3, pageY + PAGE_H + 3, 0xFF6C5033);
         fillD(graphics, pageX, pageY, pageX + PAGE_W, pageY + PAGE_H, 0xFFFFF4D6);
 
-        drawCenteredD(graphics, Component.literal("${data.getSafeBookTitle()?j_string}"), startX + SIDEBAR_W / 2, sideY + 16, 0xFFFFE5B8);
+        drawCenteredD(graphics, Component.literal(translated("title", "${data.getSafeBookTitle()?j_string}")), startX + SIDEBAR_W / 2, sideY + 16, 0xFFFFE5B8);
         renderCategories(graphics, startX + 13, sideY + 42, SIDEBAR_W - 26);
         <#if data.hasWritingZones()>
         String writingStatus = writing.signed ? "Signed: " + writing.author : writing.pending ? "Loading..."
                 : writing.writable && ${package}.book.${name}BookWritingData.ALLOW_SIGNING ? "Sign book..." : "Read only";
-        drawTextD(graphics, Component.literal(writingStatus), startX + 9, sideY + 29, 0xFFFFE5B8);
+        drawTextD(graphics, Component.literal(writingStatus), startX + 9, sideY + PAGE_H - 18, 0xFFFFE5B8);
         if (writing.writable && ${package}.book.${name}BookWritingData.ALLOW_SIGNING)
-            addClickRegion(startX + 7, sideY + 26, SIDEBAR_W - 14, 13, "sign", "");
+            addClickRegion(startX + 7, sideY + PAGE_H - 22, SIDEBAR_W - 14, 18, "sign", "");
+        if (inlineField != null) {
+            enableDesignScissor(graphics, startX + 5, sideY + 25, SIDEBAR_W - 10, 15);
+            drawTextD(graphics, Component.literal(writing.status), startX + 7, sideY + 28, 0xFFFFE5B8);
+            graphics.disableScissor();
+        }
         </#if>
 
         Page page = currentPage();
+        <#if data.hasPageSounds()>
+        updatePageSound();
+        if (page != null && !page.sound.isEmpty() && "BUTTON".equals(page.soundTrigger)) {
+            int buttonY = sideY + PAGE_H - <#if data.hasWritingZones()>46<#else>22</#if>;
+            fillD(graphics, startX + 9, buttonY, startX + SIDEBAR_W - 9, buttonY + 18, 0xFF5C4A3A);
+            drawCenteredD(graphics, Component.literal(isPageSoundPlaying() ? "Stop sound" : "Play sound"),
+                    startX + SIDEBAR_W / 2, buttonY + 4, 0xFFFFE8B8);
+            addClickRegion(startX + 9, buttonY, SIDEBAR_W - 18, 18, "page_sound", "");
+        }
+        </#if>
         if (page == null) {
             drawCenteredD(graphics, Component.literal("No pages"), pageX + PAGE_W / 2, pageY + 32, 0xFF4B3929);
             return;
@@ -156,6 +229,7 @@ public class ${name}BookScreen extends Screen {
 
         for (VisualElement element : page.elements) renderElement(graphics, element, pageX, pageY);
         renderNavigation(graphics, pageX, pageY);
+        <#if data.hasWritingZones()>renderInlineWidgets(graphics, mouseX, mouseY, partialTick);</#if>
     }
 
     /**
@@ -234,7 +308,7 @@ public class ${name}BookScreen extends Screen {
             Category category = CATEGORIES[i];
             boolean selected = i == categoryIndex;
             fillD(graphics, x - 4, cy - 4, x + w + 4, cy + 15, selected ? 0xFF5C4A3A : 0x00101010);
-            drawTextD(graphics, Component.literal(category.name), x, cy, selected ? 0xFFFFE8B8 : 0xFFD7C4A5);
+            drawTextD(graphics, Component.literal(translated("category." + category.id, category.name)), x, cy, selected ? 0xFFFFE8B8 : 0xFFD7C4A5);
             addClickRegion(x - 4, cy - 4, w + 8, 19, "category", category.id);
             cy += 23;
         }
@@ -263,7 +337,7 @@ public class ${name}BookScreen extends Screen {
         int y = pageY + title.y;
         enableDesignScissor(graphics, x, y, title.width, title.height);
         boolean rotated = title.rotation != 0;
-        renderRichTextBlock(graphics, title.content, x, y, rotated ? title.height : title.width,
+        renderRichTextBlock(graphics, translated("page." + currentPage().id, title.content), x, y, rotated ? title.height : title.width,
                 rotated ? title.width : title.height, title.align, title.rotation);
         graphics.disableScissor();
         if (title.barVisible) fillD(graphics, pageX + title.barX, pageY + title.barY,
@@ -282,7 +356,7 @@ public class ${name}BookScreen extends Screen {
             </#if>
             case "TEXT" -> {
                 enableDesignScissor(graphics, x, y, w, h);
-                renderRichTextBlock(graphics, element.content, x, y, w, h, element.align);
+                renderRichTextBlock(graphics, translated(element.translationKey, element.content), x, y, w, h, element.align);
                 graphics.disableScissor();
             }
             case "IMAGE" -> renderImage(graphics, element.mediaName, x, y, w, h);
@@ -346,7 +420,7 @@ public class ${name}BookScreen extends Screen {
             textLeft += icon + 4;
         }
 
-        Component label = Component.literal(element.label == null ? "Button" : element.label);
+        Component label = Component.literal(translated(element.translationKey, element.label == null ? "Button" : element.label));
         int available = Math.max(1, textRight - textLeft);
         float labelScale = crispTextScale(uiScale);
         int logicalLabelWidth = Math.max(1, Math.round(font.width(label) * labelScale / Math.max(0.05f, uiScale)));
@@ -453,7 +527,7 @@ public class ${name}BookScreen extends Screen {
     private VisualElement defaultNavigationElement(boolean next) {
         return new VisualElement(next ? "NAV_NEXT" : "NAV_PREV", next ? 226 : 12, 278, 18, 18,
             "", "LEFT", "", new String[0], 100, "", "", "",
-            "TRANSPARENT", "#FFF4D6", "#6D5237", "#6A5842", "", "SCREEN", "NONE");
+            "TRANSPARENT", "#FFF4D6", "#6D5237", "#6A5842", "", "SCREEN", "NONE", "");
     }
 
     private void renderNavigationArrow(GuiGraphics graphics, VisualElement element, int x, int y, int w, int h, boolean right) {
@@ -851,19 +925,23 @@ public class ${name}BookScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        <#if data.hasWritingZones()>
+        if (inlineField != null) return super.mouseClicked(mouseX, mouseY, button);
+        </#if>
         if (button == 0) {
             for (int i = clickRegions.size() - 1; i >= 0; i--) {
                 ClickRegion region = clickRegions.get(i);
                 if (!region.contains(mouseX, mouseY)) continue;
                 switch (region.type) {
                     <#if data.hasWritingZones()>
-                    case "writing" -> Minecraft.getInstance().setScreen(new ${name}BookWritingScreen(this, writing, region.target));
+                    case "writing" -> beginInlineWriting(region.target);
                     case "sign" -> Minecraft.getInstance().setScreen(new ${name}BookWritingScreen(this, writing, null));
                     </#if>
-                    case "category" -> selectCategoryById(region.target);
+                    <#if data.hasPageSounds()>case "page_sound" -> togglePageSound();</#if>
+                    case "category" -> { selectCategoryById(region.target); <#if data.hasPageSounds()>updatePageSound();</#if> }
                     case "category_list" -> changeCategoryListPage("next".equals(region.target) ? 1 : -1);
-                    case "nav" -> advancePage("next".equals(region.target) ? 1 : -1);
-                    case "page" -> selectPageById(region.target);
+                    case "nav" -> { advancePage("next".equals(region.target) ? 1 : -1); <#if data.hasPageSounds()>updatePageSound();</#if> }
+                    case "page" -> { selectPageById(region.target); <#if data.hasPageSounds()>updatePageSound();</#if> }
                     case "url" -> {
                         if (region.target.startsWith("https://") || region.target.startsWith("http://")) {
                             openExternalLinkWithWarning(region.target);
@@ -877,13 +955,18 @@ public class ${name}BookScreen extends Screen {
     }
 
     private record Category(String id, String name, Page[] pages) {}
-    private record Page(String id, String title, boolean showTitle, Title titleDesign, VisualElement[] elements) {}
+    private static String translated(String suffix, String fallback) {
+        if (suffix == null || suffix.isEmpty()) return fallback;
+        String key = "custombook.${modid}.${registryname}." + suffix;
+        return net.minecraft.locale.Language.getInstance().getOrDefault(key, fallback);
+    }
+    private record Page(String id, String title, boolean showTitle, String sound, String soundTrigger, Title titleDesign, VisualElement[] elements) {}
     private record Title(String content, String align, int x, int y, int width, int height, int rotation,
                          boolean barVisible, String barColor, int barX, int barY, int barWidth, int barHeight) {}
     private record VisualElement(String type, int x, int y, int width, int height, String content, String align,
                                  String mediaName, String[] frames, int frameDelay, String label, String targetCategoryId, String targetPageId,
                                  String buttonStyle, String buttonBackgroundColor, String buttonBorderColor, String buttonTextColor,
-                                 String buttonImageName, String buttonImageType, String buttonImageMode) {}
+                                 String buttonImageName, String buttonImageType, String buttonImageMode, String translationKey) {}
     private record StateFrame(String tag, State previous) {}
     private record RichToken(String text, State state) {}
     private record Glyph(String raw, Component component, float scale, int width, int height, boolean newline,

@@ -12,6 +12,9 @@ foreach ($file in Get-ChildItem -LiteralPath $root -Filter "*.java" -File -Recur
     $text = $text.Replace('import net.mcreator.workspace.references.TextureReference;', '')
     $text = $text.Replace('@TextureReference(value=TextureType.ITEM)', '')
     $text = $text.Replace('case Model.Type.JSON', 'case JSON').Replace('case Model.Type.OBJ', 'case OBJ')
+    if ($file.Name -eq "BookTranslations.java") {
+        $text = $text.Replace("var values = new LinkedHashMap<String, String>();", "var values = new java.util.concurrent.ConcurrentHashMap<String, String>();")
+    }
     if ($file.Name -eq "PluginElementTypes.java") {
         $text = [regex]::Replace($text, 'CUSTOMBOOK = .*?;', @'
 CUSTOMBOOK = ModElementTypeLoader.register(new ModElementType<CustomBook>("custombook", null,

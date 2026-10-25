@@ -7,6 +7,9 @@ foreach ($file in Get-ChildItem -LiteralPath $root -Filter "*.java" -File -Recur
     if ($file.Name -eq "PluginElementTypes.java") {
         $text = $text.Replace('new ModElementType("custombook", "custombook",', 'new ModElementType("custombook",')
     }
+    if ($file.Name -eq "BookTranslations.java") {
+        $text = $text.Replace("var values = new LinkedHashMap<String, String>();", "var values = new java.util.concurrent.ConcurrentHashMap<String, String>();")
+    }
     if ($file.Name -eq "CustomBookGUI.java") {
         $text = $text.Replace('this.itemModel.setItems(object);',
             'this.itemModel.removeAllItems(); for (Model model : object) this.itemModel.addItem(model);')

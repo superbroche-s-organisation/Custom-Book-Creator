@@ -1,3 +1,20 @@
+# Changelog — 2.2.0-test.1 (unreleased)
+
+Author: **Superbroche** | October 25, 2026
+
+- Added a per-page workspace sound, triggered on opening the page or through a Play/Stop button. Playback stops when leaving the page or book.
+- Added general book-editor Undo/Redo for page/category organization, elements, layout, titles and page sound settings. Kept the rich-text editor's own Undo/Redo.
+- Added the keyboard **Delete / Suppr / Del** shortcut for the selected user element in the focused preview, without capturing text-field deletion.
+- Moved player writing directly into the page's writing zone, with mode/choice and Save/Cancel controls in the sidebar.
+- Added inventory-key closing, respecting the player's remapped key and protecting active text entry and unsaved/pending edits.
+- Moved signing to the bottom of the category sidebar and reserved space through category pagination.
+- Added book-content translations through native MCreator language resources and a visual translation editor, with source fallback and stable page/element keys.
+- Added detailed help for persistent field keys, input modes, default text and predefined choices, with locale fallbacks.
+- Added NeoForge 1.21.1 to the MCreator 2024.4 package and checked native registration, generation, save and reload for both its generators.
+- Fixed redo being lost when opening a restored page filled legacy defaults, and adapted language lookup to the Minecraft 1.17.1 API.
+
+See the [patch notes](docs/2.2.0-test.1/PATCH_NOTES.md), [guide](docs/2.2.0-test.1/GUIDE.md), and [validation record](docs/2.2.0-test.1/VALIDATION.md). This is a test snapshot pushed to the repository; no release is published.
+
 # Changelog — 2.1.0
 
 Author: **Superbroche** | September 30, 2026

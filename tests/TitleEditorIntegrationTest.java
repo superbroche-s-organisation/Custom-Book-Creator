@@ -122,6 +122,19 @@ public final class TitleEditorIntegrationTest {
         image=new BufferedImage(600,240,BufferedImage.TYPE_INT_ARGB);
         graphics=image.createGraphics(); graphics.setColor(new Color(0xFFF4D6));graphics.fillRect(0,0,600,240); editor.paint(graphics);graphics.dispose();
         ImageIO.write(image,"png",output.resolve("visual-editor.png").toFile());
+        var deleteKey = KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_DELETE, 0);
+        Object deleteBinding = canvas.getInputMap(JComponent.WHEN_FOCUSED).get(deleteKey);
+        check(deleteBinding != null && canvas.isFocusable(), "Canvas Delete binding is missing");
+        check(canvas.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).get(deleteKey) == null,
+                "Delete must not intercept typing in other controls");
+        CustomBook.BookElement deleted = page.elements.get(0);
+        invoke(gui,"selectElement",new Class[]{CustomBook.BookElement.class},deleted);
+        canvas.getActionMap().get(deleteBinding).actionPerformed(new java.awt.event.ActionEvent(canvas,0,"delete"));
+        check(!page.elements.contains(deleted), "Delete shortcut did not remove selected page element");
+        int remaining = page.elements.size();
+        invoke(gui,"selectPageTitle");
+        canvas.getActionMap().get(deleteBinding).actionPerformed(new java.awt.event.ActionEvent(canvas,0,"delete"));
+        check(page.elements.size() == remaining, "Delete on page title removed body content");
     }
     private static MouseEvent mouse(JPanel canvas,int id,int x,int y,int button) {
         return new MouseEvent(canvas,id,System.currentTimeMillis(),id==MouseEvent.MOUSE_DRAGGED?MouseEvent.BUTTON1_DOWN_MASK:0,

@@ -45,12 +45,12 @@ public final class LocalizationIntegrityTest {
         }
         require(localeDirectories.size() == 30, "expected 30 help locales, found " + localeDirectories.size());
         Set<String> expectedHelpFiles = relativeFiles(helpRoot.resolve("default"));
-        require(expectedHelpFiles.size() == 13, "default help tree must contain 13 files");
+        require(expectedHelpFiles.size() == 17, "default help tree must contain 17 files");
         for (Path localeDirectory : localeDirectories) {
             require(relativeFiles(localeDirectory).equals(expectedHelpFiles),
                     localeDirectory.getFileName() + " help tree is incomplete");
         }
-        System.out.println("LOCALIZATION_INTEGRITY_OK catalogs=30 keys=" + baselineKeys.size() + " helpFiles=13");
+        System.out.println("LOCALIZATION_INTEGRITY_OK catalogs=30 keys=" + baselineKeys.size() + " helpFiles=17");
     }
 
     private static Properties load(Path path) throws Exception {

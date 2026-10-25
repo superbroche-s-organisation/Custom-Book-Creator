@@ -1,8 +1,10 @@
-# Custom Book Creator 2.1.0
+# Custom Book Creator
 
 Source code for **Custom Book Creator**, with separate plugin packages for **MCreator 2026.2, 2024.4 and 2022.2**.
 
 Author: **Superbroche**.
+
+The current development snapshot is **2.2.0-test.1**. It adds page audio, general book-editor undo/redo, the keyboard Delete shortcut, inline player writing, a bottom-sidebar signing action and book-content translations. The MCreator 2024.4 package now covers **Forge 1.20.1 and NeoForge 1.21.1**. See the [development patch notes](docs/2.2.0-test.1/PATCH_NOTES.md), [usage guide](docs/2.2.0-test.1/GUIDE.md) and [validation record](docs/2.2.0-test.1/VALIDATION.md). This snapshot has no GitHub release; the public release below is still V2.1.0.
 
 **V2.1** adds player-writable zones, preset choices, server-side writing permissions and permanent signatures to the visual book editor. V2's rich-text editor, independent paragraph alignment, page-title styling, media, drag-and-drop organization and starting books remain available.
 
@@ -15,7 +17,7 @@ This release succeeds V2.0.0. Historical test documents describe their snapshots
 | Plugin ZIP | Generator profiles in the archive |
 | --- | --- |
 | MCreator 2026.2 | Forge 1.20.1; NeoForge 1.21.1, 1.21.8, 26.1.2, 26.2; Fabric 26.2 |
-| MCreator 2024.4 | Forge 1.20.1 |
+| MCreator 2024.4 | Forge 1.20.1; NeoForge 1.21.1 (added in 2.2.0-test.1) |
 | MCreator 2022.2 | Forge 1.17.1 |
 
 A matching **workspace generator compatible with that MCreator version** must also be installed. The plugin ZIP does not supply a complete generator and cannot downgrade a workspace. The 2022.2 ZIP uses Java 17 plugin bytecode; the other two use Java 21. Generated game code follows the selected generator's Java requirements.
@@ -40,17 +42,19 @@ The script compiles against the selected MCreator installation and creates the i
 
 This rebuilds the plugin and runs the applicable Java regression tests. The optional output directory retains representative generated sources for compilation against Minecraft and loader APIs. Use `test-mcreator2022.ps1` for the legacy package. See the [validation report](docs/2.1.0/VALIDATION.md) for exact commands and remaining manual checks.
 
-The primary release passes 21 automated programs, including Swing editor/drag tests, template checks and 73 writing protocol/client checks. Real generated-code compilation is recorded separately for each packaged profile. No interactive gameplay or dedicated-server launch test is claimed.
+The development snapshot passes 24 automated programs on 2026.2 and 23 applicable programs on 2024.4, including Swing editor/drag tests, generated interaction tests and 73 writing protocol/client checks. Real generated-code compilation is recorded separately for each packaged profile. No interactive gameplay or dedicated-server launch test is claimed.
 
 ## Installation and upgrade
 
 Back up the workspace and close MCreator before replacing the old plugin ZIP. Keep only one Custom Book Creator plugin installed, including any copy in the MCreator installation's `plugins` directory as well as the user plugin directory. An old installation-directory copy can mask a newer user-directory copy.
 
-Install only the `CustomBookCreator-MCreator<your-version>-v2.1.0.zip` matching your installation. Restart MCreator, regenerate the workspace code and build it. A **sources ZIP or MCreator upload kit is not a plugin** and must never be placed in a `plugins` directory. MCreator attempts to load every ZIP there and can report `plugin is null` for a source archive.
+Install only the `CustomBookCreator-MCreator<your-version>-v<version>.zip` matching your installation. Restart MCreator, regenerate the workspace code and build it. A **sources ZIP or MCreator upload kit is not a plugin** and must never be placed in a `plugins` directory. MCreator attempts to load every ZIP there and can report `plugin is null` for a source archive.
 
 ## Localization
 
-English is the source language. The editor keeps its MCreator locale catalogs. New writing labels have English fallbacks where a translation is not available; new in-game writing dialogs are in English.
+English is the source language. The editor keeps its 30 MCreator locale catalogs. New controls/help have English fallbacks, with French translations supplied. In-game writing controls are in English.
+
+Use **Translations** above the book preview to translate authored book titles, categories, page titles, body text, button labels and writing-zone labels. These entries use MCreator's normal Localization resources and follow the player's Minecraft language, with the original text as fallback. See the [translation guide](docs/2.2.0-test.1/GUIDE.md#book-content-translations) for the scope and stable keys.
 
 ## Starting books
 

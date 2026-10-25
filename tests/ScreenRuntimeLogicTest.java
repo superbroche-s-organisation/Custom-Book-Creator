@@ -13,7 +13,8 @@ public final class ScreenRuntimeLogicTest {
             for (Path path : paths.filter(p -> Files.isRegularFile(p.resolve("custombook.definition.yaml"))).sorted().toList()) {
                 String generator = path.getFileName().toString();
                 Path template = path.resolve("templates/custombook/screen.java.ftl");
-                String source = Files.readString(template, StandardCharsets.UTF_8);
+                String source = Files.readString(template, StandardCharsets.UTF_8).replace("\r\n", "\n");
+                source = source.replace("net.minecraft.locale.Language.getInstance().getOrDefault(key, fallback)", "fallback");
                 verify(source, generator);
                 System.out.println("SCREEN_RUNTIME_LOGIC_OK " + generator);
             }
@@ -72,7 +73,7 @@ public final class ScreenRuntimeLogicTest {
                     }
                     private static Category category(String id, String... pages) {
                         return new Category(id, id, Arrays.stream(pages)
-                            .map(page -> new Page(page, page, true, null, new VisualElement[0])).toArray(Page[]::new));
+                            .map(page -> new Page(page, page, true, "", "OPEN", null, new VisualElement[0])).toArray(Page[]::new));
                     }
                     private boolean clickable(String type, String target) {
                         return clickRegions.stream().anyMatch(region -> region.type.equals(type) && region.target.equals(target));

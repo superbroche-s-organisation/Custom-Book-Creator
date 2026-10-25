@@ -7,8 +7,8 @@
   ],
   "info": {
     "name": "Custom Book Creator",
-    "version": "2.1.0",
-    "description": "Create visual books with WYSIWYG text, custom titles, media, navigation, server-validated player writing, choices, permission procedures and permanent signatures. See the V2.1 compatibility matrix for supported MCreator and generator combinations.",
+    "version": "2.2.0-test.1",
+    "description": "Development snapshot: visual books with rich text, custom titles, page audio, translations, navigation, inline player writing, choices, server permissions and permanent signatures. Use the package matching your MCreator version and installed workspace generator.",
     "author": "Superbroche"
   }
 }

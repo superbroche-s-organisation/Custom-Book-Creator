@@ -50,6 +50,8 @@ public final class Legacy2022PackageTest {
         book.rarity = "RARE";
         book.itemTexture = "book_icon";
         var page = book.getBookCategories().get(0).pages.get(0);
+        page.pageSound = "chapter.intro";
+        page.pageSoundTrigger = "BUTTON";
         page.titleDesign.position = "LEFT";
         page.titleDesign.content = "[b]Legacy title[/b]";
         var field = CustomBook.BookElement.input();

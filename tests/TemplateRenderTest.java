@@ -80,8 +80,8 @@ public final class TemplateRenderTest {
                         && screen.contains("title.rotation") && screen.contains("\"#123456\"")
                         && screen.contains("[b]A styled title[/b]"),
                 generator + ": title design / formatted content did not render");
-        require(!screen.contains("translateBookText") && !screen.contains("I18n") && !screen.contains("TRANSLATION_PATTERN"),
-                generator + ": removed book localization remains in generated code");
+        require(screen.contains("net.minecraft.locale.Language.getInstance().getOrDefault(key, fallback)"),
+                generator + ": Minecraft language fallback is missing");
 
         Map<String, Object> startingModel = baseModel();
         startingModel.put("data", new StartingData(new StartingModElement("AUDIT_BOOK")));
@@ -130,7 +130,7 @@ public final class TemplateRenderTest {
         System.out.println("TEMPLATE_RENDER_OK " + generator);
     }
 
-    private static CustomBook representativeBook() {
+    static CustomBook representativeBook() {
         CustomBook book = new CustomBook(null);
         book.bookTitle = "Audit \\\"Book\\\"";
         book.author = "Automated test";
@@ -151,6 +151,7 @@ public final class TemplateRenderTest {
         CustomBook.BookPage firstPage = new CustomBook.BookPage("First \\\"page\\\"", "");
         firstPage.titleDesign.content = "[size=18][b]A styled title[/b][/size]";
         firstPage.titleDesign.position = "LEFT";
+        firstPage.pageSound = "chapter.intro";
         firstPage.titleDesign.offset = 15;
         firstPage.titleDesign.height = 32;
         firstPage.titleDesign.barColor = "#123456";
@@ -177,6 +178,8 @@ public final class TemplateRenderTest {
 
         CustomBook.BookCategory second = new CustomBook.BookCategory("Advanced");
         CustomBook.BookPage secondPage = new CustomBook.BookPage("Destination", "Target page");
+        secondPage.pageSound = "chapter.second";
+        secondPage.pageSoundTrigger = "BUTTON";
         CustomBook.BookElement button = CustomBook.BookElement.button("Open destination", second.id);
         button.targetPageId = secondPage.id;
         button.buttonStyle = "OUTLINE";
@@ -208,7 +211,7 @@ public final class TemplateRenderTest {
         return element;
     }
 
-    private static Map<String, Object> baseModel() {
+    static Map<String, Object> baseModel() {
         HashMap<String, Object> model = new HashMap<>();
         model.put("package", "com.example.audit");
         model.put("JavaModName", "AuditMod");

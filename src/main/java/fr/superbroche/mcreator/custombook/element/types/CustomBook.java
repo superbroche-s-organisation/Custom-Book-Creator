@@ -435,11 +435,18 @@ IItemWithTexture {
         }
     }
 
+    public boolean hasPageSounds() {
+        return getBookCategories().stream().flatMap(category -> category.pages.stream())
+                .anyMatch(page -> !page.getPageSound().isEmpty());
+    }
+
     public static class BookPage {
         public String id = UUID.randomUUID().toString();
         public String title;
         public boolean showTitle;
         public TitleDesign titleDesign = new TitleDesign();
+        public String pageSound = "";
+        public String pageSoundTrigger = "OPEN";
         public String content;
         public List<BookElement> elements;
 
@@ -458,6 +465,16 @@ IItemWithTexture {
         public List<BookElement> getBookElements() {
             this.normalizeElements();
             return this.elements;
+        }
+
+        /** Workspace sound event name, never an external file or URL. */
+        public String getPageSound() {
+            return pageSound != null && pageSound.matches("[a-z0-9_.-]+(?:/[a-z0-9_.-]+)*")
+                    && !pageSound.contains("..") ? pageSound : "";
+        }
+
+        public String getPageSoundTrigger() {
+            return "BUTTON".equals(pageSoundTrigger) ? "BUTTON" : "OPEN";
         }
 
         public TitleDesign getTitleDesign() {
