@@ -23,7 +23,7 @@ Changes since public V2.1.0, including the four unpublished 2.2 test snapshots.
 - Replaced category pagination with an always-visible scrollable list; removed the duplicate selected-category header/chevron. Eleven entries fit above signing.
 - Added configured inventory-key closing for both existing read-only and writable books after regeneration. Active writing protects the key for text entry.
 - Extended the MCreator 2024.4 package from Forge 1.20.1 to Forge 1.20.1 plus NeoForge 1.21.1.
-- Updated packaging to validate the V2.2 release matrix, Java targets, committed source inventory, upload-kit contents and checksums.
+- Updated packaging to validate the release matrix, Java targets, committed source inventory and four-file release asset inventory. Supporting documents and website resources remain in the repository.
 
 ## Fixed
 

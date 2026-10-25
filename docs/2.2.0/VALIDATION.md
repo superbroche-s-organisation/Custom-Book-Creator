@@ -45,11 +45,13 @@ All four writing help entries load their real bodies. The integration fixture ex
 
 1. A new clipboard regression reproduced that copying from the white translation preview could store white as the actual book-text color. The preview now keeps the real default color and does not infer persisted colors from its display override. Plain and explicitly colored rich clipboard roundtrips pass; the dialog still displays white text.
 2. Disabling/re-enabling that display override now restores/preserves the authored color rather than saving the painted foreground.
-3. The release packager was still scoped to V2.1 and a Forge-only 2024.4 archive. It now validates the V2.2 manifest, two-profile 2024.4 package, Java targets, committed source inventory, upload-kit contents and SHA-256 files.
+3. The release packager was still scoped to V2.1 and a Forge-only 2024.4 archive. It now validates the release manifest, two-profile 2024.4 package, Java targets and committed source inventory.
 
 ## Archive checks
 
-`package-release.ps1` requires committed clean sources and checks all three plugin manifests/authors, supported profile inventories and catalogs, validation metadata, classfile Java versions and unexpected SDK/cache payloads. The sources ZIP is generated from the release commit and checked against every tracked file. Every upload-kit entry is hashed against its prepared input; SHA256SUMS.txt is included for the artifacts. The enlarged existing 512×512 plugin icon is reused unchanged.
+`package-release.ps1` requires committed clean sources and checks all three plugin manifests/authors, supported profile inventories and catalogs, validation metadata, classfile Java versions and unexpected SDK/cache payloads. The sources ZIP is generated from the reviewed commit and checked against every tracked file. The upload directory is restricted to exactly the three plugin ZIPs and the sources ZIP.
+
+The initial V2.2.0 publication also included verified supporting files and a local MCreator upload kit. These extra attachments were subsequently removed to adopt the four-ZIP release policy. The four retained ZIPs, their SHA-256 digests, asset identities and release tag were verified unchanged during cleanup. Documentation and website resources stay in the repository; no checksum file, icon or upload kit is attached to future releases.
 
 ## Remaining limits
 

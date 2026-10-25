@@ -32,7 +32,7 @@ A matching compatible workspace generator must be installed separately. Other ex
 
 Back up the workspace, close MCreator and replace the old plugin ZIP with the package matching your MCreator version. Keep only one installed copy, restart MCreator, use **Regenerate code**, then rebuild the mod. Existing books receive the new behavior after regeneration. Earlier test-build page-level sound settings migrate once to sound elements.
 
-The sources archive and MCreator upload kit are **not installable plugins**. The upload kit contains the three plugin variants, sources, documentation, checksums and the existing enlarged website icon for manual MCreator website upload.
+Release downloads contain only the three MCreator plugin ZIPs and the sources ZIP. The sources archive is **not an installable plugin**. Guides, validation, website description and icon remain in the repository.
 
 ## Validation and limits
 

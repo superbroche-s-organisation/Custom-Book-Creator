@@ -5,7 +5,7 @@ $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 $safeRoot = $root.Replace("\", "/")
 $version = (Get-Content -LiteralPath (Join-Path $root "src/main/resources/plugin.json") -Raw | ConvertFrom-Json).info.version
-if ($version -ne "2.2.0") { throw "This packager is scoped to the reviewed V2.2.0 artifacts." }
+if ($version -notmatch '^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$') { throw "Set a valid release version before packaging." }
 $status = @(git -c "safe.directory=$safeRoot" -C $root status --porcelain)
 if ($LASTEXITCODE -ne 0 -or $status.Count) { throw "Commit the reviewed sources before packaging a release." }
 $destination = [IO.Path]::GetFullPath($OutputDirectory)
@@ -74,39 +74,11 @@ try {
     if ($manifest.info.version -ne $version) { throw "Source archive has wrong version" }
     Write-Output "SOURCE_ARCHIVE_OK files=$($sourceFiles.Count)"
 } finally { $sourceArchive.Dispose() }
-$kit = Join-Path $root ("build/release-kit-" + [guid]::NewGuid().ToString("N"))
-New-Item -ItemType Directory -Path $kit | Out-Null
-foreach ($path in $plugins) { Copy-Item -LiteralPath $path -Destination $kit }
-Copy-Item -LiteralPath $sources -Destination $kit
-foreach ($name in @("CHANGELOG.md", "PATCH_NOTES.md", "GUIDE.md", "VALIDATION.md", "MCREATOR_DESCRIPTION.md", "MCREATOR_UPLOAD.md")) {
-    $source = Join-Path $root "docs/$version/$name"
-    Copy-Item -LiteralPath $source -Destination $destination
-    Copy-Item -LiteralPath $source -Destination $kit
+$expectedAssets = @($plugins | ForEach-Object { Split-Path -Leaf $_ }) + @($sourcesName)
+$actualAssets = @(Get-ChildItem -LiteralPath $destination -File | ForEach-Object Name)
+if ($actualAssets.Count -ne 4 -or
+    (($actualAssets | Sort-Object) -join ',') -ne (($expectedAssets | Sort-Object) -join ',')) {
+    throw "A GitHub release must contain exactly the three plugin ZIPs and the sources ZIP."
 }
-# Reuse the existing enlarged MCreator icon, unchanged.
-$icon = Join-Path $root "docs/2.0.0/website-icon-512x512.png"
-Copy-Item -LiteralPath $icon -Destination $destination
-Copy-Item -LiteralPath $icon -Destination $kit
-function Write-Hashes([string]$Directory) {
-    $lines = @(Get-ChildItem -LiteralPath $Directory -File | Where-Object Name -ne "SHA256SUMS.txt" | Sort-Object Name |
-        ForEach-Object { (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() + "  " + $_.Name })
-    [IO.File]::WriteAllLines((Join-Path $Directory "SHA256SUMS.txt"), [string[]]$lines, [Text.UTF8Encoding]::new($false))
-}
-Write-Hashes $kit
-$kitZip = Join-Path $destination "CustomBookCreator-MCreator-upload-kit-v$version.zip"
-[IO.Compression.ZipFile]::CreateFromDirectory($kit, $kitZip, [IO.Compression.CompressionLevel]::Optimal, $false)
-$kitArchive = [IO.Compression.ZipFile]::OpenRead($kitZip)
-try {
-    foreach ($entry in $kitArchive.Entries) {
-        $stream = $entry.Open()
-        $sha = [Security.Cryptography.SHA256]::Create()
-        try { $hash = [BitConverter]::ToString($sha.ComputeHash($stream)).Replace("-", "") }
-        finally { $stream.Dispose(); $sha.Dispose() }
-        if ($hash -ne (Get-FileHash -LiteralPath (Join-Path $kit $entry.FullName) -Algorithm SHA256).Hash) {
-            throw "Kit entry hash mismatch: $($entry.FullName)"
-        }
-    }
-    Write-Output "UPLOAD_KIT_OK entries=$($kitArchive.Entries.Count)"
-} finally { $kitArchive.Dispose() }
-Write-Hashes $destination
+Write-Output "RELEASE_ASSETS_OK count=4"
 Get-ChildItem -LiteralPath $destination -File | Select-Object Name, Length

@@ -8,7 +8,7 @@ Author: **Superbroche**.
 
 Player-writable zones, preset choices, server-side permissions, permanent signatures, rich text, independent paragraph alignment, page-title design, media, drag-and-drop organization and starting books remain available.
 
-Download the plugin variants, sources and MCreator upload kit from [V2.2.0 on GitHub](https://github.com/superbroche-s-organisation/Custom-Book-Creator/releases/tag/v2.2.0). See the [patch notes](docs/2.2.0/PATCH_NOTES.md), [changelog](CHANGELOG.md), [usage guide](docs/2.2.0/GUIDE.md), [compatibility and validation](docs/2.2.0/VALIDATION.md), and [feature description](docs/2.2.0/MCREATOR_DESCRIPTION.md).
+Download the three plugin variants and the sources ZIP from [V2.2.0 on GitHub](https://github.com/superbroche-s-organisation/Custom-Book-Creator/releases/tag/v2.2.0). See the [patch notes](docs/2.2.0/PATCH_NOTES.md), [changelog](CHANGELOG.md), [usage guide](docs/2.2.0/GUIDE.md), [compatibility and validation](docs/2.2.0/VALIDATION.md), and [feature description](docs/2.2.0/MCREATOR_DESCRIPTION.md).
 
 This release succeeds V2.1.0 and includes the four unpublished 2.2 test snapshots. Historical documents describe their snapshots, not necessarily current behavior.
 
@@ -33,6 +33,8 @@ Run from PowerShell:
 ```
 
 The script compiles against the selected MCreator installation and creates the installable ZIP in `dist`. For older packages add `-TargetMCreator 2024.4` or `-TargetMCreator 2022.2` and use that version's installation path.
+
+GitHub releases attach exactly four files: the three MCreator plugin ZIPs and `CustomBookCreator-v<VERSION>-sources.zip`. Documentation, checksums, icons and upload kits are not separate release attachments. `package-release.ps1 -OutputDirectory <new-folder>` prepares and validates this four-file upload directory. See [release rules](AGENTS.md).
 
 ## Test
 
