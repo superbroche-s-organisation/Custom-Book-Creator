@@ -50,13 +50,13 @@ public final class ScreenRuntimeLogicTest {
                 }
                 public class ScreenLogicFixture extends ScreenParent {
                     private static final int DEFAULT_SIZE = 12;
-                    private static final int CATEGORY_ROWS = 10, PAD = 5, SIDEBAR_W = 140;
+                    private static final int CATEGORY_ROWS = 11, PAD = 5, SIDEBAR_W = 140;
                     private static Category[] CATEGORIES;
                     private static boolean HIDE_NEXT_ARROW_AT_CATEGORY_END;
                     private int categoryIndex, pageIndex, categoryMenuScroll;
-                    private boolean categoryMenuOpen;
                     private float uiScale = 1f;
                     private final List<ClickRegion> clickRegions = new ArrayList<>();
+                    private final List<String> labels = new ArrayList<>();
                     private static final class Graphics { void disableScissor() {} }
                     private int sx(int n) { return n; }
                     private int sy(int n) { return n; }
@@ -66,7 +66,7 @@ public final class ScreenRuntimeLogicTest {
                         static Component empty() { return literal(""); }
                     }
                     private void fillD(Graphics graphics, int a, int b, int c, int d, int color) {}
-                    private void drawTextD(Graphics graphics, Component text, int x, int y, int color) {}
+                    private void drawTextD(Graphics graphics, Component text, int x, int y, int color) { labels.add(text.text); }
                     private void drawCenteredD(Graphics graphics, Component text, int x, int y, int color) {}
                     private void addClickRegion(int x, int y, int w, int h, String type, String target) {
                         clickRegions.add(new ClickRegion(x, y, w, h, type, target));
@@ -136,24 +136,22 @@ public final class ScreenRuntimeLogicTest {
                         CATEGORIES = new Category[25];
                         for (int i = 0; i < CATEGORIES.length; i++) CATEGORIES[i] = category("c" + i, "p" + i);
                         screen.renderCategories(new Graphics(), 13, 47, 114);
-                        check(screen.clickable("category_menu", "") && !screen.clickable("category", "c0"), "Closed dropdown exposes entries");
+                        check(screen.clickable("category", "c0") && !screen.clickable("category_menu", ""), "Category list is hidden behind a selector");
+                        check(screen.labels.stream().filter("c0"::equals).count() == 1, "Selected category is duplicated in a header");
                         check(!screen.clickable("category_list", "next"), "Old pagination remains");
-                        screen.categoryMenuOpen = true;
                         screen.clickRegions.clear();
                         screen.renderCategories(new Graphics(), 13, 47, 114);
-                        check(screen.clickable("category", "c0") && screen.clickable("category", "c9") && !screen.clickable("category", "c10"), "Dropdown viewport bounds");
+                        check(screen.clickable("category", "c0") && screen.clickable("category", "c10") && !screen.clickable("category", "c11"), "Scrolling list viewport bounds");
                         screen.mouseScrolled(20, 100, 0, -1);
                         check(screen.categoryMenuScroll == 1, "Dropdown wheel scroll failed");
                         screen.scrollCategories(1000);
                         screen.clickRegions.clear();
                         screen.renderCategories(new Graphics(), 13, 47, 114);
-                        check(screen.categoryMenuScroll == 15 && screen.clickable("category", "c24"), "Last categories inaccessible");
+                        check(screen.categoryMenuScroll == 14 && screen.clickable("category", "c24"), "Last categories inaccessible");
                         screen.selectCategoryById("c0");
-                        check(screen.categoryMenuScroll == 0 && !screen.categoryMenuOpen, "Selected category not revealed/menu not closed");
+                        check(screen.categoryMenuScroll == 0, "Selected category not revealed");
                         screen.selectPageById("p24");
-                        check(screen.categoryMenuScroll == 15 && screen.categoryIndex == 24, "Linked category not revealed");
-                        screen.categoryMenuOpen = true;
-                        check(screen.closeCategoryMenuOnEscape(256) && !screen.categoryMenuOpen, "Escape did not close dropdown");
+                        check(screen.categoryMenuScroll == 14 && screen.categoryIndex == 24, "Linked category not revealed");
 
                         CATEGORIES = new Category[] { category("a", "a1", "a2"), category("empty"), category("b", "b1") };
                         screen.categoryIndex = 0;

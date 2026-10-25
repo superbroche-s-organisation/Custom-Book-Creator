@@ -1,3 +1,13 @@
+# Changelog — 2.2.0-test.3 (unreleased)
+
+Author: **Superbroche** | October 25, 2026
+
+- Removed the duplicate current-category selection header and its chevron.
+- Categories now appear directly in a single scrollable list, with room for eleven entries above the centered signing action.
+- Kept mouse-wheel scrolling, selection highlighting and automatic reveal of linked categories/pages. Escape no longer has an extra category-panel dismissal step.
+
+See the [patch notes and targeted validation](docs/2.2.0-test.3/PATCH_NOTES.md). This test snapshot is pushed to source only; no release is published.
+
 # Changelog — 2.2.0-test.2 (unreleased)
 
 Author: **Superbroche** | October 25, 2026

@@ -32,7 +32,7 @@ public class ${name}BookScreen extends Screen {
     private static final int DESIGN_W = CONTENT_W + PAD * 2;
     private static final int DESIGN_H = PAGE_H + PAD * 2 + <#if data.hasWritingZones()>50<#else>0</#if>;
     private static final int DEFAULT_SIZE = 12;
-    private static final int CATEGORY_ROWS = 10;
+    private static final int CATEGORY_ROWS = 11;
     private static final boolean HIDE_NEXT_ARROW_AT_CATEGORY_END = ${data.hideNextArrowAtCategoryEnd?c};
     private static final Pattern TAG_PATTERN = Pattern.compile("\\[(/?)(b|i|u|s|obf|size|color|url|page|align)(?:=([^\\]]+))?\\]", Pattern.CASE_INSENSITIVE);
 
@@ -69,7 +69,6 @@ public class ${name}BookScreen extends Screen {
     private int categoryIndex = 0;
     private int pageIndex = 0;
     private int categoryMenuScroll = 0;
-    private boolean categoryMenuOpen;
     private float uiScale = 1f;
     private int originX = 0;
     private int originY = 0;
@@ -313,21 +312,17 @@ public class ${name}BookScreen extends Screen {
     }
 
     private void renderCategories(GuiGraphicsExtractor graphics, int x, int y, int w) {
-        String label = CATEGORIES.length == 0 ? "No categories" : translated("category." + CATEGORIES[categoryIndex].id, CATEGORIES[categoryIndex].name);
-        fillD(graphics, x - 4, y - 4, x + w + 4, y + 15, 0xFF5C4A3A);
-        enableDesignScissor(graphics, x, y - 1, Math.max(1, w - 14), 16);
-        drawTextD(graphics, Component.literal(label), x, y, 0xFFFFE8B8);
-        graphics.disableScissor();
-        drawTextD(graphics, Component.literal(categoryMenuOpen ? "^" : "v"), x + w - 8, y, 0xFFFFE8B8);
-        addClickRegion(x - 4, y - 4, w + 8, 19, "category_menu", "");
-        if (!categoryMenuOpen) return;
+        if (CATEGORIES.length == 0) {
+            drawTextD(graphics, Component.literal("No categories"), x, y, 0xFFFFE8B8);
+            return;
+        }
         scrollCategories(0);
         int rows = Math.min(CATEGORY_ROWS, CATEGORIES.length);
-        fillD(graphics, x - 4, y + 18, x + w + 4, y + 18 + rows * 23, 0xFF342D27);
+        fillD(graphics, x - 4, y - 4, x + w + 4, y - 4 + rows * 23, 0xFF342D27);
         for (int row = 0; row < rows; row++) {
             int index = categoryMenuScroll + row;
             Category category = CATEGORIES[index];
-            int cy = y + 23 + row * 23;
+            int cy = y + row * 23;
             if (index == categoryIndex) fillD(graphics, x - 3, cy - 4, x + w - 5, cy + 15, 0xFF5C4A3A);
             enableDesignScissor(graphics, x, cy - 2, Math.max(1, w - 8), 18);
             drawTextD(graphics, Component.literal(translated("category." + category.id, category.name)), x, cy, 0xFFFFE8B8);
@@ -338,8 +333,8 @@ public class ${name}BookScreen extends Screen {
             int track = rows * 23;
             int thumb = Math.max(6, track * rows / CATEGORIES.length);
             int offset = (track - thumb) * categoryMenuScroll / Math.max(1, CATEGORIES.length - rows);
-            fillD(graphics, x + w, y + 18, x + w + 3, y + 18 + track, 0xFF5C4A3A);
-            fillD(graphics, x + w, y + 18 + offset, x + w + 3, y + 18 + offset + thumb, 0xFFD7C4A5);
+            fillD(graphics, x + w, y - 4, x + w + 3, y - 4 + track, 0xFF5C4A3A);
+            fillD(graphics, x + w, y - 4 + offset, x + w + 3, y - 4 + offset + thumb, 0xFFD7C4A5);
         }
     }
 
@@ -347,18 +342,13 @@ public class ${name}BookScreen extends Screen {
         categoryMenuScroll = Math.max(0, Math.min(categoryMenuScroll + delta, Math.max(0, CATEGORIES.length - CATEGORY_ROWS)));
     }
 
-    private boolean closeCategoryMenuOnEscape(int key) {
-        if (categoryMenuOpen && key == 256) { categoryMenuOpen = false; return true; }
-        return false;
-    }
-
     private boolean categoryMenuContains(double mouseX, double mouseY) {
         return mouseX >= sx(PAD + 9) && mouseX < sx(PAD + SIDEBAR_W - 9)
-                && mouseY >= sy(PAD + 38) && mouseY < sy(PAD + 60 + Math.min(CATEGORY_ROWS, CATEGORIES.length) * 23);
+                && mouseY >= sy(PAD + 38) && mouseY < sy(PAD + 38 + Math.min(CATEGORY_ROWS, CATEGORIES.length) * 23);
     }
 
     @Override public boolean mouseScrolled(double mouseX, double mouseY, double deltaX, double deltaY) {
-        if (categoryMenuOpen && categoryMenuContains(mouseX, mouseY)) {
+        if (categoryMenuContains(mouseX, mouseY)) {
             scrollCategories(deltaY > 0 ? -1 : deltaY < 0 ? 1 : 0);
             return true;
         }
@@ -901,7 +891,7 @@ public class ${name}BookScreen extends Screen {
         for (int i = 0; i < CATEGORIES.length; i++) {
             if (CATEGORIES[i].id.equals(id)) {
                 categoryIndex = i;
-                categoryMenuScroll = i; scrollCategories(0); categoryMenuOpen = false;
+                categoryMenuScroll = i; scrollCategories(0);
                 pageIndex = 0;
                 return;
             }
@@ -913,7 +903,7 @@ public class ${name}BookScreen extends Screen {
             for (int p = 0; p < CATEGORIES[c].pages.length; p++) {
                 if (CATEGORIES[c].pages[p].id.equals(id)) {
                     categoryIndex = c;
-                    categoryMenuScroll = c; scrollCategories(0); categoryMenuOpen = false;
+                    categoryMenuScroll = c; scrollCategories(0);
                     pageIndex = p;
                     return;
                 }
@@ -939,7 +929,7 @@ public class ${name}BookScreen extends Screen {
             if (c < 0) return;
         }
         categoryIndex = c;
-        categoryMenuScroll = c; scrollCategories(0); categoryMenuOpen = false;
+        categoryMenuScroll = c; scrollCategories(0);
         pageIndex = p;
     }
 
@@ -963,7 +953,6 @@ public class ${name}BookScreen extends Screen {
         double mouseY = event.y();
         if (event.button() == 0) {
             <#if data.hasWritingZones()>if (inlineField != null && mouseX >= sx(PAD + SIDEBAR_W + GAP_W)) return super.mouseClicked(event, doubleClick);</#if>
-            if (categoryMenuOpen && !categoryMenuContains(mouseX, mouseY)) { categoryMenuOpen = false; return true; }
             for (int i = clickRegions.size() - 1; i >= 0; i--) {
                 ClickRegion region = clickRegions.get(i);
                 if (!region.contains(mouseX, mouseY)) continue;
@@ -974,7 +963,6 @@ public class ${name}BookScreen extends Screen {
                     </#if>
                     <#if data.hasPageSounds()>case "page_sound" -> togglePageSound(region.target);</#if>
                     case "category" -> { <#if data.hasWritingZones()>navigateToCategory(region.target);<#else>selectCategoryById(region.target); <#if data.hasPageSounds()>updatePageSound();</#if></#if> }
-                    case "category_menu" -> { categoryMenuOpen = !categoryMenuOpen; categoryMenuScroll = categoryIndex; scrollCategories(0); }
                     case "nav" -> { advancePage("next".equals(region.target) ? 1 : -1); <#if data.hasPageSounds()>updatePageSound();</#if> }
                     case "page" -> { selectPageById(region.target); <#if data.hasPageSounds()>updatePageSound();</#if> }
                     case "url" -> {

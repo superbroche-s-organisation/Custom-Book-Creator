@@ -19,7 +19,6 @@
                 inlineDraft = writing.value(key);
                 inlineChoices = "PRESET".equals(field.mode());
                 inlineChoiceIndex = -1;
-                categoryMenuOpen = false;
                 createInlineWidgets();
                 break;
             }
@@ -134,7 +133,6 @@
     </#if>
 
     @Override public boolean keyPressed(int key, int scanCode, int modifiers) {
-        if (closeCategoryMenuOnEscape(key)) return true;
         <#if data.hasWritingZones()>
         // While a writing zone is open, inventory keys are text, including E.
         if (inlineField != null) return super.keyPressed(key, scanCode, modifiers);

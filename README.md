@@ -4,7 +4,7 @@ Source code for **Custom Book Creator**, with separate plugin packages for **MCr
 
 Author: **Superbroche**.
 
-The current development snapshot is **2.2.0-test.2**. It adds a **Sound/music page element**, white translation-editor text, working writing help, a scrollable category dropdown, centered signing and writing controls below the page. It also includes the previous snapshot's general Undo/Redo, Delete shortcut, inline player writing and book-content translations. The MCreator 2024.4 package covers **Forge 1.20.1 and NeoForge 1.21.1**. See the [patch notes](docs/2.2.0-test.2/PATCH_NOTES.md), [usage guide](docs/2.2.0-test.2/GUIDE.md) and [validation record](docs/2.2.0-test.2/VALIDATION.md). This snapshot has no GitHub release; the public release below is still V2.1.0.
+The current development snapshot is **2.2.0-test.3**. Categories appear directly in one scrollable list, with the duplicate selection header and its chevron removed. It retains test.2's **Sound/music page element**, white translation-editor text, working writing help, centered signing and writing controls below the page, plus general Undo/Redo, Delete, inline writing and translations. The MCreator 2024.4 package covers **Forge 1.20.1 and NeoForge 1.21.1**. See the [current patch notes and checks](docs/2.2.0-test.3/PATCH_NOTES.md), the [feature guide](docs/2.2.0-test.3/GUIDE.md) and the [previous validation record](docs/2.2.0-test.2/VALIDATION.md). This snapshot has no GitHub release; the public release below is still V2.1.0.
 
 **V2.1** adds player-writable zones, preset choices, server-side writing permissions and permanent signatures to the visual book editor. V2's rich-text editor, independent paragraph alignment, page-title styling, media, drag-and-drop organization and starting books remain available.
 
@@ -70,7 +70,7 @@ Version 1.1 makes the grant server-only, uses the correct persistent-data API fo
 - Drag pages to reorder them or move them to another category.
 - Page and category identifiers stay stable, so existing internal page buttons continue to target the same page after a move.
 - Enable **Stop on the last page of each category** in Properties to hide and disable the right arrow on a category's final page. Leave it disabled to continue directly to the next category.
-- Use the category dropdown and scroll its list to reach every category. The old sidebar page counter/arrows are removed. Signing is centered at the bottom; writing controls appear below the right-hand page.
+- Scroll the category list to reach every category. The selection header/chevron and old sidebar page counter/arrows are removed. Signing is centered at the bottom; writing controls appear below the right-hand page.
 
 ## Compatibility fixes
 

@@ -37,7 +37,6 @@ public final class PageInteractionTest {
                 + method(source, "@Override public void onClose()")
                 + method(source, "private void cancelInlineWriting()")
                 + method(source, "private void navigateToCategory(")
-                + method(source, "private boolean closeCategoryMenuOnEscape(")
                 + method(source, "private static String translated(");
         methods = methods.replace("net.minecraft.client.input.KeyEvent", "KeyEvent")
                 .replace("net.minecraft.client.gui.screens.ConfirmScreen", "ConfirmScreen")
@@ -76,7 +75,7 @@ public final class PageInteractionTest {
                 }
                 Client minecraft=new Client(); Field inlineField; Editor inlineEditor;
                 Writing writing=new Writing(); String inlineDraft=""; int ended;
-                boolean categoryMenuOpen; String selectedCategory;
+                String selectedCategory;
                 void selectCategoryById(String id) { selectedCategory=id; }
                 void updatePageSound() {}
                 void endInlineWriting() { inlineField=null;inlineEditor=null;ended++; }
@@ -103,7 +102,6 @@ public final class PageInteractionTest {
                     s.press(256);((ConfirmScreen)s.minecraft.screen).reply.accept(true);
                     check(s.inlineField==null && s.ended==2,"Discard did not end inline editing");
                     s.press(256);check(s.closed==3,"Escape cannot close book after editing");
-                    s.categoryMenuOpen=true;s.press(256);check(!s.categoryMenuOpen && s.closed==3,"Escape closed book through dropdown");
                     s.start("draft");s.writing.pending=true;s.navigateToCategory("other");
                     check(s.selectedCategory==null,"Category changed during server write");
                     s.writing.pending=false;s.navigateToCategory("other");
