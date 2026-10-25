@@ -7,7 +7,7 @@
   ],
   "info": {
     "name": "Custom Book Creator",
-    "version": "2.2.0-test.3",
+    "version": "2.2.0-test.4",
     "description": "Development snapshot: visual books with rich text, custom titles, page audio, translations, navigation, inline player writing, choices, server permissions and permanent signatures. Use the package matching your MCreator version and installed workspace generator.",
     "author": "Superbroche"
   }

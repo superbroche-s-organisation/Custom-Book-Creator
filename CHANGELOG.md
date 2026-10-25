@@ -1,3 +1,13 @@
+# Changelog — 2.2.0-test.4 (unreleased)
+
+Author: **Superbroche** | October 25, 2026
+
+- Book sounds now use Minecraft's **Jukebox/Note Blocks** (`RECORDS`) sound category for both automatic page playback and Play/Stop buttons.
+- Updated audio help in all 30 interface catalogs and the current guide.
+- The existing playback regression checks the actual sound category passed to each created sound instance.
+
+See the [patch notes and checks](docs/2.2.0-test.4/PATCH_NOTES.md). This snapshot is pushed to source without publishing a release.
+
 # Changelog — 2.2.0-test.3 (unreleased)
 
 Author: **Superbroche** | October 25, 2026

@@ -110,7 +110,7 @@ public class ${name}BookScreen extends Screen {
         stopPageSound(element);
         if (element.mediaName.isEmpty() || minecraft == null) return;
         var instance = new net.minecraft.client.resources.sounds.SimpleSoundInstance(
-                ResourceLocation.fromNamespaceAndPath("${modid}", element.mediaName), net.minecraft.sounds.SoundSource.MUSIC,
+                ResourceLocation.fromNamespaceAndPath("${modid}", element.mediaName), net.minecraft.sounds.SoundSource.RECORDS,
                 1f, 1f, net.minecraft.util.RandomSource.create(), false, 0,
                 net.minecraft.client.resources.sounds.SoundInstance.Attenuation.NONE, 0, 0, 0, true);
         pageSounds.put(element, instance);

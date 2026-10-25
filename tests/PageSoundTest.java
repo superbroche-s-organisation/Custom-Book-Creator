@@ -73,7 +73,7 @@ public final class PageSoundTest {
         int removed = source.indexOf("    @Override public void removed()", start);
         methods += source.substring(removed, source.indexOf("    </#if>", removed));
         methods = methods.replace("net.minecraft.client.resources.sounds.", "")
-                .replace("net.minecraft.sounds.SoundSource.MUSIC", "\"MUSIC\"")
+                .replace("net.minecraft.sounds.SoundSource.RECORDS", "\"RECORDS\"")
                 .replace("net.minecraft.util.RandomSource.create()", "new Object()")
                 .replace("${modid}", "audit");
         String fixture = """
@@ -89,11 +89,18 @@ public final class PageSoundTest {
                 record Identifier(String namespace, String name) {
                     static Identifier fromNamespaceAndPath(String n, String p) { return new Identifier(n,p); }
                 }
-                static final class SimpleSoundInstance implements SoundInstance { SimpleSoundInstance(Object... args) {} }
+                static final class SimpleSoundInstance implements SoundInstance {
+                    final String source;
+                    SimpleSoundInstance(Object... args) { source = args.length > 1 ? (String) args[1] : "UNRELATED"; }
+                }
                 static final class Manager {
                     int plays, stops;
                     Set<SoundInstance> active = new HashSet<>();
-                    void play(SoundInstance s) { active.add(s); plays++; }
+                    void play(SoundInstance s) {
+                        if (!"RECORDS".equals(((SimpleSoundInstance)s).source))
+                            throw new AssertionError("Book sound does not use the Jukebox/Note Blocks mixer channel");
+                        active.add(s); plays++;
+                    }
                     void stop(SoundInstance s) { active.remove(s); stops++; }
                     boolean isActive(SoundInstance s) { return active.contains(s); }
                 }
