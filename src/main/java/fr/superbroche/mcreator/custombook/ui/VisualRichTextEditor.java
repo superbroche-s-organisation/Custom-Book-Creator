@@ -99,6 +99,7 @@ public final class VisualRichTextEditor extends JTextPane {
 
     /** View-only color override; original color tags remain in the stored document styles. */
     public void setDisplayColor(Color color) {
+        boolean inferPreviousColor = displayColor == null;
         displayColor = color;
         if (color != null) {
             setForeground(color); setCaretColor(color); setSelectedTextColor(color); setDisabledTextColor(color);
@@ -110,10 +111,10 @@ public final class VisualRichTextEditor extends JTextPane {
             for (int start = 0; start < document.getLength();) {
                 Element run = document.getCharacterElement(start);
                 int end = Math.min(document.getLength(), run.getEndOffset());
-                document.setCharacterAttributes(start, end - start, attributes(styles(run.getAttributes())), true);
+                document.setCharacterAttributes(start, end - start, attributes(styles(run.getAttributes(), inferPreviousColor)), true);
                 start = end;
             }
-            getInputAttributes().addAttributes(attributes(styles(getInputAttributes())));
+            getInputAttributes().addAttributes(attributes(styles(getInputAttributes(), inferPreviousColor)));
         } finally { silent = previous; }
         repaint();
     }
@@ -333,6 +334,10 @@ public final class VisualRichTextEditor extends JTextPane {
     }
 
     private Map<String, String> styles(AttributeSet attrs) {
+        return styles(attrs, displayColor == null);
+    }
+
+    private Map<String, String> styles(AttributeSet attrs, boolean inferNativeColor) {
         Map<String, String> result = new LinkedHashMap<>();
         for (String key : STYLES) {
             Object value = attrs.getAttribute(ATTRIBUTE + key);
@@ -340,7 +345,7 @@ public final class VisualRichTextEditor extends JTextPane {
         }
         int size = StyleConstants.getFontSize(attrs);
         if (attrs.isDefined(StyleConstants.FontSize) && size != defaultSize) result.put("size", Integer.toString(size));
-        if (attrs.isDefined(StyleConstants.Foreground) && !StyleConstants.getForeground(attrs).equals(defaultColor))
+        if (inferNativeColor && attrs.isDefined(StyleConstants.Foreground) && !StyleConstants.getForeground(attrs).equals(defaultColor))
             result.put("color", colorHex(StyleConstants.getForeground(attrs)));
         nativeToggle(result, "b", StyleConstants.isBold(attrs));
         nativeToggle(result, "i", StyleConstants.isItalic(attrs));

@@ -16,7 +16,7 @@ public final class NativeMCreatorSaveTest {
     public static void main(String[] args) {
         try {
             var version = new java.util.Properties();
-            try (var manifest = NativeMCreatorSaveTest.class.getClassLoader().getResourceAsStream("META-INF/MANIFEST.MF")) {
+            try (var manifest = Files.newInputStream(Path.of(System.getProperty("custombook.nativeManifest")))) {
                 version.setProperty("mcreator", new java.util.jar.Manifest(manifest).getMainAttributes().getValue("MCreator-Version"));
             }
             net.mcreator.Launcher.version = new net.mcreator.util.MCreatorVersionNumber(version);

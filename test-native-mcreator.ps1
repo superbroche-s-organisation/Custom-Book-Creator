@@ -20,7 +20,7 @@ try {
     $env:MCREATOR_HOME = "$root/home"
     $env:MCREATOR_PLUGINS_FOLDER = "$root/home/plugins"
     Push-Location $root
-    try { & "$sdk/jdk/bin/java.exe" "--add-opens=java.desktop/java.awt=ALL-UNNAMED" "-Djava.awt.headless=true" "-Duser.home=$root/home" "-Dlog_directory=$root" -cp "$root/classes;$cp" NativeMCreatorSaveTest @Profiles }
+    try { & "$sdk/jdk/bin/java.exe" "--add-opens=java.desktop/java.awt=ALL-UNNAMED" "-Djava.awt.headless=true" "-Duser.home=$root/home" "-Dlog_directory=$root" "-Dcustombook.nativeManifest=$root/core/META-INF/MANIFEST.MF" -cp "$root/classes;$cp" NativeMCreatorSaveTest @Profiles }
     finally { Pop-Location }
     if ($LASTEXITCODE -ne 0) { throw "Native integration test failed. Evidence: $root" }
     Write-Host "Native integration passed. Evidence: $root"

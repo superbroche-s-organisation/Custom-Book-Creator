@@ -5,14 +5,14 @@ $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 $safeRoot = $root.Replace("\", "/")
 $version = (Get-Content -LiteralPath (Join-Path $root "src/main/resources/plugin.json") -Raw | ConvertFrom-Json).info.version
-if ($version -ne "2.1.0") { throw "This packager is scoped to the reviewed V2.1.0 artifacts." }
+if ($version -ne "2.2.0") { throw "This packager is scoped to the reviewed V2.2.0 artifacts." }
 $status = @(git -c "safe.directory=$safeRoot" -C $root status --porcelain)
 if ($LASTEXITCODE -ne 0 -or $status.Count) { throw "Commit the reviewed sources before packaging a release." }
 $destination = [IO.Path]::GetFullPath($OutputDirectory)
 if (Test-Path -LiteralPath $destination) { throw "Output directory already exists; no files were overwritten." }
 $targets = [ordered]@{
     "2026.2" = @("fabric-26.2", "forge-1.20.1", "neoforge-1.21.1", "neoforge-1.21.8", "neoforge-26.1.2", "neoforge-26.2")
-    "2024.4" = @("forge-1.20.1")
+    "2024.4" = @("forge-1.20.1", "neoforge-1.21.1")
     "2022.2" = @("forge-1.17.1")
 }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -79,7 +79,7 @@ New-Item -ItemType Directory -Path $kit | Out-Null
 foreach ($path in $plugins) { Copy-Item -LiteralPath $path -Destination $kit }
 Copy-Item -LiteralPath $sources -Destination $kit
 foreach ($name in @("CHANGELOG.md", "PATCH_NOTES.md", "GUIDE.md", "VALIDATION.md", "MCREATOR_DESCRIPTION.md", "MCREATOR_UPLOAD.md")) {
-    $source = Join-Path $root "docs/2.1.0/$name"
+    $source = Join-Path $root "docs/$version/$name"
     Copy-Item -LiteralPath $source -Destination $destination
     Copy-Item -LiteralPath $source -Destination $kit
 }

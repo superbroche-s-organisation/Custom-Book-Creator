@@ -136,7 +136,6 @@ public final class BookTranslations {
 
     private static VisualRichTextEditor translationEditor() {
         VisualRichTextEditor editor = new VisualRichTextEditor();
-        editor.setDefaultStyle(12, Color.WHITE);
         editor.setDisplayColor(Color.WHITE);
         editor.setBackground(new Color(0x2B2B2B));
         return editor;

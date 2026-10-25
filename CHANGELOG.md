@@ -1,3 +1,21 @@
+# Changelog — 2.2.0
+
+Author: **Superbroche** | October 25, 2026
+
+Changes since public V2.1.0, including the four 2.2 test snapshots:
+
+- Independent sound/music elements with automatic or button playback using Jukebox/Note Blocks volume.
+- General Undo/Redo and keyboard Delete for page elements.
+- Inline player writing with controls below the page, a directly visible scrollable category list and centered signing.
+- Inventory-key closing with active-writing and unsaved/pending protections.
+- Authored book-content translations, readable white previews and working detailed writing help.
+- NeoForge 1.21.1 added to the MCreator 2024.4 package; the other validated profiles remain available.
+- Fixed redo normalization, missing writing help paths and scaled text-zone borders.
+- Final checkup fixed rich clipboard export leaking the preview's white color into book text, including safe preview-color toggling.
+- Release packaging validates all three variants, the updated matrix, Java targets, source inventory, upload-kit files and checksums.
+
+See the [full changelog](docs/2.2.0/CHANGELOG.md), [patch notes](docs/2.2.0/PATCH_NOTES.md), [guide](docs/2.2.0/GUIDE.md) and [validation record](docs/2.2.0/VALIDATION.md).
+
 # Changelog — 2.2.0-test.4 (unreleased)
 
 Author: **Superbroche** | October 25, 2026
