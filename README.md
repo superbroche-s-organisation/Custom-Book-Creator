@@ -1,4 +1,4 @@
-# Custom Book Creator 2.2.0
+# Custom Book Creator 2.2.1
 
 Source code for **Custom Book Creator**, with separate plugin packages for **MCreator 2026.2, 2024.4 and 2022.2**.
 
@@ -8,7 +8,9 @@ Author: **Superbroche**.
 
 Player-writable zones, preset choices, server-side permissions, permanent signatures, rich text, independent paragraph alignment, page-title design, media, drag-and-drop organization and starting books remain available.
 
-Download the three plugin variants and the sources ZIP from [V2.2.0 on GitHub](https://github.com/superbroche-s-organisation/Custom-Book-Creator/releases/tag/v2.2.0). See the [patch notes](docs/2.2.0/PATCH_NOTES.md), [changelog](CHANGELOG.md), [usage guide](docs/2.2.0/GUIDE.md), [compatibility and validation](docs/2.2.0/VALIDATION.md), and [feature description](docs/2.2.0/MCREATOR_DESCRIPTION.md).
+**V2.2.1 fixes both Save buttons on MCreator 2024.4**, for Forge 1.20.1 and NeoForge 1.21.1, and revalidates NeoForge 1.21.1 on MCreator 2026.2.
+
+Download the three plugin variants and the sources ZIP from [V2.2.1 on GitHub](https://github.com/superbroche-s-organisation/Custom-Book-Creator/releases/tag/v2.2.1). See the [patch notes](docs/2.2.1/PATCH_NOTES.md), [changelog](CHANGELOG.md), [usage guide](docs/2.2.0/GUIDE.md), [hotfix validation](docs/2.2.1/VALIDATION.md), [full V2.2 compatibility and validation](docs/2.2.0/VALIDATION.md), and [feature description](docs/2.2.1/MCREATOR_DESCRIPTION.md).
 
 This release succeeds V2.1.0 and includes the four unpublished 2.2 test snapshots. Historical documents describe their snapshots, not necessarily current behavior.
 
@@ -19,6 +21,8 @@ This release succeeds V2.1.0 and includes the four unpublished 2.2 test snapshot
 | MCreator 2026.2 | Forge 1.20.1; NeoForge 1.21.1, 1.21.8, 26.1.2, 26.2; Fabric 26.2 |
 | MCreator 2024.4 | Forge 1.20.1; NeoForge 1.21.1 |
 | MCreator 2022.2 | Forge 1.17.1 |
+
+For **Minecraft 1.21.1 / NeoForge on MCreator 2026.2**, use the **MCreator2026.2** plugin ZIP and an installed NeoForge 1.21.1 generator compatible with MCreator 2026.2. This combination is included and revalidated in `2.2.1`; see the [test report](docs/2.2.1/VALIDATION.md#mcreator-20262--neoforge-1211).
 
 A matching **workspace generator compatible with that MCreator version** must also be installed. The plugin ZIP does not supply a complete generator and cannot downgrade a workspace. The 2022.2 ZIP uses Java 17 plugin bytecode; the other two use Java 21. Generated game code follows the selected generator's Java requirements.
 
@@ -44,7 +48,7 @@ GitHub releases attach exactly four files: the three MCreator plugin ZIPs and `C
 
 This rebuilds the plugin and runs the applicable Java regression tests. The optional output directory retains representative generated sources for compilation against Minecraft and loader APIs. Use `test-mcreator2022.ps1` for the legacy package. See the [validation report](docs/2.2.0/VALIDATION.md) for exact commands and remaining manual checks.
 
-The release passes all 26 automated programs on 2026.2 and all 25 applicable programs on 2024.4, including Swing editor/drag tests, generated interaction and scaled-border tests, translation clipboard checks, and 73 writing protocol/client checks. Real generated-code compilation is recorded separately for each packaged profile. No complete interactive gameplay or dedicated-server launch test is claimed.
+V2.2.1 passes all 27 automated programs on 2026.2 and all 26 applicable programs on 2024.4, including the new pre-save validation regression, Swing editor/drag tests, generated interaction and scaled-border tests, translation clipboard checks, and 73 writing protocol/client checks. The 2022.2 package passes its legacy ABI/registration/reload and 12-template checks. Real generated-code compilation is recorded separately for each packaged profile; game templates are unchanged from V2.2.0. No complete interactive gameplay or dedicated-server launch test is claimed.
 
 ## Installation and upgrade
 

@@ -17,9 +17,16 @@ foreach ($file in Get-ChildItem -LiteralPath $root -Filter "*.java" -File -Recur
             'refreshListKeepSelected()')
         $text = $text.Replace('    public void reloadDataLists() {', @'
     @Override protected net.mcreator.ui.validation.AggregatedValidationResult validatePage(int page) {
-        if (page == 2 && writingPermission != null && onBookSigned != null)
-            return new net.mcreator.ui.validation.AggregatedValidationResult(writingPermission, onBookSigned);
-        return new net.mcreator.ui.validation.AggregatedValidationResult();
+        var result = new net.mcreator.ui.validation.AggregatedValidationResult();
+        // 2024.4 returns null for optional controls without a validator;
+        // its aggregation dereferences that null before either Save action.
+        if (page == 2) {
+            if (writingPermission != null && writingPermission.getValidator() != null)
+                result.addValidationElement(writingPermission);
+            if (onBookSigned != null && onBookSigned.getValidator() != null)
+                result.addValidationElement(onBookSigned);
+        }
+        return result;
     }
 
     public void reloadDataLists() {

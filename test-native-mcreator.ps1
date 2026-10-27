@@ -12,7 +12,11 @@ Push-Location "$root/core"
 try { & "$sdk/jdk/bin/jar.exe" xf "$sdk/mcreator.exe" net META-INF } finally { Pop-Location }
 if ($LASTEXITCODE -ne 0) { throw "Core extraction failed" }
 $cp = (@("$root/core", $plugin) + @(Get-ChildItem "$sdk/lib" -Filter "*.jar" | ForEach-Object FullName)) -join ";"
-& "$sdk/jdk/bin/javac.exe" -proc:none -encoding UTF8 -cp $cp -d "$root/classes" "$PSScriptRoot/integration/NativeMCreatorSaveTest.java"
+$testSources = @("$PSScriptRoot/integration/NativeMCreatorSaveTest.java")
+if ((Get-Content -LiteralPath "$root/core/META-INF/MANIFEST.MF" -Raw) -match 'MCreator-Version: 2024\.4') {
+    $testSources += "$PSScriptRoot/integration/NativeMCreator2024SaveButtonsTest.java"
+}
+& "$sdk/jdk/bin/javac.exe" -proc:none -encoding UTF8 -cp $cp -d "$root/classes" @testSources
 if ($LASTEXITCODE -ne 0) { throw "Integration test compilation failed" }
 $previousHome = $env:MCREATOR_HOME
 $previousPlugins = $env:MCREATOR_PLUGINS_FOLDER

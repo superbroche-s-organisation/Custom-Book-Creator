@@ -1,3 +1,14 @@
+# Changelog — 2.2.1
+
+Author: **Superbroche** | October 27, 2026
+
+- Fix both Custom Book Save actions on MCreator 2024.4 (Forge 1.20.1 and NeoForge 1.21.1). Optional procedure selectors without validators are no longer added to the native validation aggregate, which previously threw a null-pointer exception before saving.
+- Preserve explicit validator failures instead of bypassing all validation.
+- Add a regression test and native 2024.4 Save-button, GUI conversion, generation, storage and reload coverage. See the [validation report](docs/2.2.1/VALIDATION.md).
+- Rebuild the separate MCreator 2026.2 ZIP and revalidate its included NeoForge 1.21.1 profile: native registration, read-only/writable book generation and storage/reload, plus generated Java compilation against Minecraft 1.21.1 / NeoForge 21.1.232.
+
+MCreator 2022.2/2026.2 plugin behavior and game templates are unchanged. Release downloads contain exactly the three MCreator plugin ZIPs and the sources ZIP.
+
 # Changelog — 2.2.0
 
 Author: **Superbroche** | October 25, 2026

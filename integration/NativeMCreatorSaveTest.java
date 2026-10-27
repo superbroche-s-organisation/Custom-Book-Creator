@@ -13,6 +13,7 @@ import net.mcreator.workspace.settings.WorkspaceSettings;
 
 /** Runs the native plugin loader, generator coverage and storage/generation path in an isolated installation. */
 public final class NativeMCreatorSaveTest {
+    private static boolean test2024SaveButtons;
     public static void main(String[] args) {
         try {
             var version = new java.util.Properties();
@@ -20,6 +21,7 @@ public final class NativeMCreatorSaveTest {
                 version.setProperty("mcreator", new java.util.jar.Manifest(manifest).getMainAttributes().getValue("MCreator-Version"));
             }
             net.mcreator.Launcher.version = new net.mcreator.util.MCreatorVersionNumber(version);
+            test2024SaveButtons = "2024.4".equals(version.getProperty("mcreator"));
             PreferencesManager.PREFERENCES = new net.mcreator.preferences.data.PreferencesData();
             PreferencesManager.PREFERENCES.hidden.enableJavaPlugins.set(true);
             PluginLoader.initInstance();
@@ -69,6 +71,10 @@ public final class NativeMCreatorSaveTest {
         try {
             ModElement element = new ModElement(workspace, "AuditBook", PluginElementTypes.CUSTOMBOOK);
             CustomBook book = new CustomBook(element);
+            if (test2024SaveButtons) {
+                book = (CustomBook) Class.forName("NativeMCreator2024SaveButtonsTest").getMethod("verify", Workspace.class, ModElement.class)
+                        .invoke(null, workspace, element);
+            }
             book.name = "Audit book";
             book.bookTitle = "Audit book";
             workspace.addModElement(element);
